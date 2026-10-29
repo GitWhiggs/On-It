@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "OnIt",
+    "slug": "on-it",
+    "version": "1.0.0",
+    "scheme": "onit",
+    "orientation": "portrait",
+    "icon": "./assets/onit-logo-square.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "favicon": "./assets/onit-logo-square.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
