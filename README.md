@@ -4,11 +4,12 @@ On-demand help app (Expo / React Native, TypeScript). We're building it one scre
 
 ## Run it
 
+Sign-in uses Firebase, which needs our own test version of the app (a "development build"). Expo Go can't run it.
+
 1. Install Node.js (LTS) from nodejs.org (one time).
 2. In this folder: `npm install` (first time, and whenever package.json changes).
-3. Sign-in setup (one time, see below), then start it: `npx expo start`
-   - Phone: install **Expo Go**, then scan the QR code (iPhone: use the Camera app).
-   - Computer: press `w` to open it in your browser.
+3. Firebase setup and a development build (one time, see below).
+4. Start it: `npx expo start`, then open the **OnIt** dev app on your phone and pick the server.
 
 ## Where things are
 
@@ -19,19 +20,21 @@ On-demand help app (Expo / React Native, TypeScript). We're building it one scre
 - `src/components/` - pieces shared by screens (`Button.tsx`)
 - `src/theme.ts` - light and dark colors
 - `assets/` - logo and images
-- `src/lib/supabase.ts` - connection to Supabase (accounts and sign-in)
 - Setup files (`package.json`, `app.json`, `tsconfig.json`) stay at the top level
 
-## Sign-in setup (Supabase + Twilio Verify)
+## Firebase setup (one time)
 
-Supabase handles accounts. It sends the 6-digit text codes through Twilio Verify.
+1. Go to console.firebase.google.com and create a project called OnIt.
+2. Add an **Android app** with package name `com.onitapp.app`. Download `google-services.json` into this folder (next to package.json).
+3. Add an **iOS app** with bundle ID `com.onitapp.app`. Download `GoogleService-Info.plist` into this folder.
+4. Build > Authentication > Get started > Sign-in method > turn on **Phone**.
+5. Under "Phone numbers for testing", add a test number (for example `+1 555-555-1234`, code `123456`). Test numbers are free.
+6. Real texts need the pay-as-you-go **Blaze** plan (billed per text).
 
-1. Make a free project at supabase.com.
-2. Make a Twilio account, then in Twilio go to Verify and create a Verify Service.
-3. In Supabase: Authentication > Sign In / Providers > Phone. Turn it on, pick **Twilio Verify**, and paste your Twilio Account SID, Auth Token and Verify Service SID. These stay in Supabase, never in the app.
-4. Copy `.env.example`, name the copy `.env`, and fill in your Supabase project URL and publishable (anon) key from Project Settings > API.
-5. Restart with `npx expo start --clear`.
+## Development build (one time per phone)
 
-For testing without paying for texts, add test numbers in the same Phone settings (for example `15555551234` with code `123456`).
-
-`.env` is not uploaded to GitHub. Send it to each other privately.
+- `npm install -g eas-cli`, then `eas login` (free Expo account) and `eas build:configure`
+- Android: `eas build --profile development --platform android`, then install the file it gives you on your phone.
+  - Add the build's SHA-1 and SHA-256 to Firebase (Project settings > Android app). Get them with `eas credentials`.
+- iPhone: needs an Apple Developer account ($99/year). Run `eas device:create`, then `eas build --profile development --platform ios`.
+- Rebuild only when you add packages with native code. Normal code changes show up instantly.

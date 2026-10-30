@@ -1,14 +1,24 @@
 // Login screen: phone number, then a 6-digit text code. No password.
-// Supabase sends the code by text (through Twilio Verify) and signs the person in.
-import { useState } from 'react';
+// Firebase sends the code by text and signs the person in.
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
-import { supabase, supabaseReady } from '@/lib/supabase';
+import { getAuth, onAuthStateChanged, signInWithPhoneNumber } from '@react-native-firebase/auth';
 import { BLUE, useTheme } from '@/theme';
 
 const CODE_LENGTH = 6;
+type Confirmation = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
+
+// Turns Firebase error codes into plain words.
+function friendlyError(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? '';
+  if (code === 'auth/invalid-phone-number') return 'That phone number doesn’t look right.';
+  if (code === 'auth/too-many-requests') return 'Too many tries. Wait a few minutes and try again.';
+  if (code === 'auth/quota-exceeded') return 'We can’t send texts right now. Try again later.';
+  return 'Couldn’t send the code. Check your connection and try again.';
+}
 
 // "5551234567" -> "(555) 123-4567"
 function formatPhone(text: string): string {
@@ -26,36 +36,42 @@ export default function Login() {
   const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const confirmation = useRef<Confirmation | null>(null);
+
+  // On Android, Firebase can sometimes read the text by itself and sign the person in.
+  useEffect(() => onAuthStateChanged(getAuth(), (user) => { if (user) setStep('done'); }), []);
 
   const digits = phone.replace(/\D/g, '');
-  const e164 = `+1${digits}`; // the format Supabase and Twilio expect
+  const e164 = `+1${digits}`; // the format Firebase expects
   const phoneReady = digits.length === 10;
   const codeReady = code.length === CODE_LENGTH;
 
   async function sendCode() {
     setBusy(true);
     setError('');
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      confirmation.current = await signInWithPhoneNumber(getAuth(), e164);
+      setCode('');
+      setStep('code');
+    } catch (e) {
+      setError(friendlyError(e));
+    } finally {
+      setBusy(false);
     }
-    setCode('');
-    setStep('code');
   }
 
   async function verify() {
     setBusy(true);
     setError('');
-    const { error } = await supabase.auth.verifyOtp({ phone: e164, token: code, type: 'sms' });
-    setBusy(false);
-    if (error) {
+    try {
+      await confirmation.current?.confirm(code);
+      // Later: open the home screen here.
+      setStep('done');
+    } catch {
       setError('That code didn’t work. Check it and try again.');
-      return;
+    } finally {
+      setBusy(false);
     }
-    // Later: open the home screen here.
-    setStep('done');
   }
 
   const field = [styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }];
@@ -65,12 +81,6 @@ export default function Login() {
       <StatusBar style="auto" />
       <KeyboardAvoidingView style={styles.inner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Text style={[styles.brand, { color: BLUE }]}>OnIt</Text>
-
-        {!supabaseReady && (
-          <Text style={styles.error}>
-            Sign-in isn’t connected yet. Add your Supabase URL and key to a .env file (see README).
-          </Text>
-        )}
 
         {step === 'phone' && (
           <View style={styles.form}>
