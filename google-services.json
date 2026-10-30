@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "938011461917",
+    "project_id": "on-it-7f869",
+    "storage_bucket": "on-it-7f869.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938011461917:android:b9b3fbd0d77271f82f39f4",
+        "android_client_info": {
+          "package_name": "com.onitapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCzynZi9s8jo3GwDgSSZoKckyplu3oDIo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
