@@ -1,11 +1,14 @@
-// Login screen: phone number, then a 4-digit text code. No password.
-// Texts aren't really sent yet. Any 4 digits work until we add a backend.
+// Login screen: phone number, then a 6-digit text code. No password.
+// Supabase sends the code by text (through Twilio Verify) and signs the person in.
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
+import { supabase, supabaseReady } from '@/lib/supabase';
 import { BLUE, useTheme } from '@/theme';
+
+const CODE_LENGTH = 6;
 
 // "5551234567" -> "(555) 123-4567"
 function formatPhone(text: string): string {
@@ -21,37 +24,59 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-  const phoneReady = phone.replace(/\D/g, '').length === 10;
-  const codeReady = code.length === 4;
+  const digits = phone.replace(/\D/g, '');
+  const e164 = `+1${digits}`; // the format Supabase and Twilio expect
+  const phoneReady = digits.length === 10;
+  const codeReady = code.length === CODE_LENGTH;
 
-  function sendCode() {
-    // Later: ask the backend to text this number a code.
+  async function sendCode() {
+    setBusy(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
+    setBusy(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
     setCode('');
     setStep('code');
   }
 
-  function verify() {
-    // Later: check the code with the backend, then open the home screen.
+  async function verify() {
+    setBusy(true);
+    setError('');
+    const { error } = await supabase.auth.verifyOtp({ phone: e164, token: code, type: 'sms' });
+    setBusy(false);
+    if (error) {
+      setError('That code didn’t work. Check it and try again.');
+      return;
+    }
+    // Later: open the home screen here.
     setStep('done');
   }
+
+  const field = [styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }];
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.bg }]}>
       <StatusBar style="auto" />
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.inner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Text style={[styles.brand, { color: BLUE }]}>OnIt</Text>
+
+        {!supabaseReady && (
+          <Text style={styles.error}>
+            Sign-in isn’t connected yet. Add your Supabase URL and key to a .env file (see README).
+          </Text>
+        )}
 
         {step === 'phone' && (
           <View style={styles.form}>
             <Text style={[styles.title, { color: t.text }]}>What's your number?</Text>
-            <Text style={[styles.sub, { color: t.muted }]}>
-              We'll text you a code. No password needed.
-            </Text>
-            <View style={[styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }]}>
+            <Text style={[styles.sub, { color: t.muted }]}>We'll text you a code. No password needed.</Text>
+            <View style={field}>
               <Text style={[styles.prefix, { color: t.text }]}>+1</Text>
               <TextInput
                 style={[styles.input, { color: t.text }]}
@@ -68,7 +93,8 @@ export default function Login() {
                 autoFocus
               />
             </View>
-            <Button label="Send code" onPress={sendCode} disabled={!phoneReady} />
+            {!!error && <Text style={styles.error}>{error}</Text>}
+            <Button label={busy ? 'Sending…' : 'Send code'} onPress={sendCode} disabled={!phoneReady || busy} />
           </View>
         )}
 
@@ -76,26 +102,32 @@ export default function Login() {
           <View style={styles.form}>
             <Text style={[styles.title, { color: t.text }]}>Enter your code</Text>
             <Text style={[styles.sub, { color: t.muted }]}>Sent to +1 {phone}</Text>
-            <View style={[styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }]}>
+            <View style={field}>
               <TextInput
                 style={[styles.input, styles.code, { color: t.text }]}
                 value={code}
-                onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 4))}
-                placeholder="1234"
+                onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, CODE_LENGTH))}
+                placeholder="123456"
                 placeholderTextColor={t.muted}
                 keyboardType="number-pad"
                 autoComplete="one-time-code"
                 textContentType="oneTimeCode"
-                accessibilityLabel="4-digit code"
+                accessibilityLabel="6-digit code"
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 autoFocus
               />
             </View>
-            <Button label="Verify" onPress={verify} disabled={!codeReady} />
-            <Pressable onPress={() => setStep('phone')} accessibilityRole="button" style={styles.link}>
-              <Text style={[styles.linkText, { color: BLUE }]}>Change number</Text>
-            </Pressable>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+            <Button label={busy ? 'Checking…' : 'Verify'} onPress={verify} disabled={!codeReady || busy} />
+            <View style={styles.links}>
+              <Pressable onPress={() => { setError(''); setStep('phone'); }} accessibilityRole="button" style={styles.link}>
+                <Text style={[styles.linkText, { color: BLUE }]}>Change number</Text>
+              </Pressable>
+              <Pressable onPress={sendCode} disabled={busy} accessibilityRole="button" style={styles.link}>
+                <Text style={[styles.linkText, { color: BLUE }]}>Resend code</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -128,7 +160,9 @@ const styles = StyleSheet.create({
   },
   prefix: { fontSize: 17, fontWeight: '700' },
   input: { flex: 1, fontSize: 17, fontWeight: '600', height: '100%', outlineWidth: 0 },
-  code: { letterSpacing: 8 },
-  link: { alignSelf: 'center', paddingVertical: 12 },
+  code: { letterSpacing: 6 },
+  error: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
+  links: { flexDirection: 'row', justifyContent: 'space-between' },
+  link: { paddingVertical: 12 },
   linkText: { fontSize: 15, fontWeight: '600' },
 });
