@@ -5,8 +5,9 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
-import { getAuth, onAuthStateChanged, signInWithPhoneNumber, signOut } from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithPhoneNumber, signOut } from '@/lib/auth';
 import { BLUE, useTheme } from '@/theme';
+import { useRouter } from 'expo-router';
 
 const CODE_LENGTH = 6;
 type Confirmation = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
@@ -32,6 +33,7 @@ function formatPhone(text: string): string {
 
 export default function Login() {
   const t = useTheme();
+  const router = useRouter();
   const [step, setStep] = useState<'phone' | 'code' | 'done'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -69,7 +71,7 @@ export default function Login() {
     try {
       await confirmation.current?.confirm(code);
       // Later: open the home screen here.
-      setStep('done');
+      router.replace('/home');
     } catch (e) {
       if (__DEV__) console.warn('Verify failed:', e);
       setError('That code didn’t work. Check it and try again.');
