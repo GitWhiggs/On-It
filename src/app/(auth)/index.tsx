@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
-import { getAuth, onAuthStateChanged, signInWithPhoneNumber } from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithPhoneNumber, signOut } from '@react-native-firebase/auth';
 import { BLUE, useTheme } from '@/theme';
 
 const CODE_LENGTH = 6;
@@ -17,7 +17,9 @@ function friendlyError(e: unknown): string {
   if (code === 'auth/invalid-phone-number') return 'That phone number doesn’t look right.';
   if (code === 'auth/too-many-requests') return 'Too many tries. Wait a few minutes and try again.';
   if (code === 'auth/quota-exceeded') return 'We can’t send texts right now. Try again later.';
-  return 'Couldn’t send the code. Check your connection and try again.';
+  const fallback = 'Couldn’t send the code. Check your connection and try again.';
+  // While testing, also show Firebase's exact error so we can fix it.
+  return __DEV__ ? `${fallback}\n[${code || 'no code'}] ${(e as Error)?.message ?? ''}` : fallback;
 }
 
 // "5551234567" -> "(555) 123-4567"
@@ -54,6 +56,7 @@ export default function Login() {
       setCode('');
       setStep('code');
     } catch (e) {
+      if (__DEV__) console.warn('Send code failed:', e);
       setError(friendlyError(e));
     } finally {
       setBusy(false);
@@ -67,11 +70,21 @@ export default function Login() {
       await confirmation.current?.confirm(code);
       // Later: open the home screen here.
       setStep('done');
-    } catch {
+    } catch (e) {
+      if (__DEV__) console.warn('Verify failed:', e);
       setError('That code didn’t work. Check it and try again.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function logOut() {
+    await signOut(getAuth());
+    confirmation.current = null;
+    setPhone('');
+    setCode('');
+    setError('');
+    setStep('phone');
   }
 
   const field = [styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }];
@@ -145,6 +158,10 @@ export default function Login() {
           <View style={styles.form}>
             <Text style={[styles.title, { color: t.text }]}>You're in!</Text>
             <Text style={[styles.sub, { color: t.muted }]}>The home screen comes next.</Text>
+            {/* Temporary, until the Account screen has a sign-out button. */}
+            <Pressable onPress={logOut} accessibilityRole="button" style={styles.link}>
+              <Text style={[styles.linkText, { color: BLUE }]}>Sign out</Text>
+            </Pressable>
           </View>
         )}
       </KeyboardAvoidingView>
