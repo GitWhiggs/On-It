@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import BottomNav from '@/components/BottomNav';
 import {
   KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -69,10 +70,7 @@ export default function Home() {
       </View>
 
       <View style={styles.nav}>
-        <NavItem icon="home" label="Home" active />
-        <NavItem icon="briefcase-outline" label="Jobs" />
-        <NavItem icon="message-outline" label="Messages" />
-        <NavItem icon="account-outline" label="Account" />
+      <BottomNav />
       </View>
 
       <Modal visible={sheet !== null} transparent animationType="slide" onRequestClose={close}>
