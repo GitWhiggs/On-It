@@ -1,121 +1,145 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import {
+  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+type Sheet = 'category' | 'address' | 'when' | null;
 
-// Design tokens (hex fallbacks of the Display P3 palette)
 const C = {
-  bg: '#0A0E1A',
-  surface1: '#111728',
-  surface2: '#172036',
-  surface3: '#1F2A45',
-  border: '#2A3558',
-  text: '#F2F5FF',
-  textSecondary: '#9AA6C4',
-  textMuted: '#66728F',
-  primary: '#4D7CFF',
-  success: '#2EF2A0',
-  glowPrimary: '#4D7CFF',
+  bg: '#FAFAF7',
+  surface: '#FFFFFF',
+  border: '#DAD8D1',
+  text: '#111111',
+  textSecondary: '#5E5E5A',
+  textMuted: '#9A9A94',
+  accent: '#0F7B5F',
 };
 
-const CATEGORIES: { label: string; icon: IconName }[] = [
-  { label: 'Moving', icon: 'truck-outline' },
-  { label: 'Yard', icon: 'sprout-outline' },
-  { label: 'Events', icon: 'party-popper' },
-  { label: 'Errands', icon: 'shopping-outline' },
-  { label: 'Seasonal', icon: 'snowflake' },
+const CATEGORIES = [
+  { name: 'Moving', example: 'Couches, dorms, truck unloads' },
+  { name: 'Yard work', example: 'Raking, mowing, hauling branches' },
+  { name: 'Events', example: 'Setup, cleanup, running errands' },
+  { name: 'Errands', example: 'Groceries, pickups, returns' },
+  { name: 'Seasonal', example: 'Snow shoveling, holiday lights' },
 ];
 
-const HELPERS = [
-  { name: 'Marcus V.', info: '4.94 · 3 jobs with you', away: '~8 min away' },
-  { name: 'Dana R.', info: '4.97 · 1 job with you', away: '~12 min away' },
-];
+const TIMES = ['now', 'today', 'tomorrow', 'this weekend'];
 
 export default function Home() {
+  const [category, setCategory] = useState<string | null>(null);
+  const [address, setAddress] = useState('Storrs, CT');
+  const [when, setWhen] = useState('today');
+  const [sheet, setSheet] = useState<Sheet>(null);
+
+  const close = () => setSheet(null);
+
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={styles.logo}>On-It</Text>
-          <View style={styles.pill}>
-            <View style={styles.dot} />
-            <Text style={styles.pillText}>18 helpers nearby</Text>
-          </View>
-        </View>
+      <StatusBar style="dark" />
 
-        <View>
-          <Text style={styles.help}>Help at</Text>
-          <Text style={styles.address}>Your address ▾</Text>
-        </View>
+      <View style={styles.body}>
+        <Text style={styles.logo}>On-It</Text>
 
-        <View style={styles.search}>
-          <MaterialCommunityIcons name="magnify" size={20} color={C.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="What do you need done?"
-            placeholderTextColor={C.textMuted}
-          />
-        </View>
+        <Text style={styles.sentence}>
+          I need help with{' '}
+          <Text style={[styles.blank, !category && styles.blankEmpty]} onPress={() => setSheet('category')}>
+            {category ? category.toLowerCase() : 'something'}
+          </Text>{' '}
+          at{' '}
+          <Text style={styles.blank} onPress={() => setSheet('address')}>
+            {address.trim() || 'your address'}
+          </Text>{' '}
+          <Text style={styles.blank} onPress={() => setSheet('when')}>
+            {when}
+          </Text>
+          .
+        </Text>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-          {CATEGORIES.map((c) => (
-            <Pressable key={c.label} style={styles.cat}>
-              <View style={styles.catIcon}>
-                <MaterialCommunityIcons name={c.icon} size={28} color={C.primary} />
-              </View>
-              <Text style={styles.catLabel}>{c.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <View style={styles.sectionRow}>
-          <Text style={styles.section}>Your helpers</Text>
-          <Text style={styles.edit}>Edit</Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.helpers}>
-          {HELPERS.map((h) => (
-            <View key={h.name} style={styles.helperCard}>
-              <View style={styles.helperTop}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{h.name[0]}</Text>
-                </View>
-                <View>
-                  <Text style={styles.helperName}>{h.name}</Text>
-                  <Text style={styles.helperInfo}>{h.info}</Text>
-                </View>
-              </View>
-              <View style={styles.helperBottom}>
-                <Text style={styles.away}>{h.away}</Text>
-                <Pressable style={styles.bookBtn}>
-                  <Text style={styles.bookText}>Book again</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      </ScrollView>
+        <Pressable
+          style={[styles.cta, !category && styles.ctaOff]}
+          disabled={!category}
+          onPress={() => {}}
+        >
+          <Text style={styles.ctaText}>Find a helper</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.nav}>
         <NavItem icon="home" label="Home" active />
         <NavItem icon="briefcase-outline" label="Jobs" />
-        <View style={styles.plusSlot}>
-          <Pressable style={styles.plus}>
-            <MaterialCommunityIcons name="plus" size={30} color="#fff" />
-          </Pressable>
-        </View>
         <NavItem icon="message-outline" label="Messages" />
         <NavItem icon="account-outline" label="Account" />
       </View>
+
+      <Modal visible={sheet !== null} transparent animationType="slide" onRequestClose={close}>
+        <KeyboardAvoidingView
+          style={styles.modalWrap}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.backdrop} onPress={close} />
+          <View style={styles.sheet}>
+            {sheet === 'category' && (
+              <>
+                <Text style={styles.sheetTitle}>What do you need help with?</Text>
+                {CATEGORIES.map((c) => (
+                  <Pressable
+                    key={c.name}
+                    style={styles.option}
+                    onPress={() => { setCategory(c.name); close(); }}
+                  >
+                    <Text style={styles.optionName}>{c.name}</Text>
+                    <Text style={styles.optionExample}>{c.example}</Text>
+                  </Pressable>
+                ))}
+              </>
+            )}
+
+            {sheet === 'when' && (
+              <>
+                <Text style={styles.sheetTitle}>When?</Text>
+                {TIMES.map((t) => (
+                  <Pressable
+                    key={t}
+                    style={styles.option}
+                    onPress={() => { setWhen(t); close(); }}
+                  >
+                    <Text style={styles.optionName}>{t}</Text>
+                  </Pressable>
+                ))}
+              </>
+            )}
+
+            {sheet === 'address' && (
+              <>
+                <Text style={styles.sheetTitle}>Where should they go?</Text>
+                <TextInput
+                  style={styles.input}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="Street address"
+                  placeholderTextColor={C.textMuted}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={close}
+                />
+                <Pressable style={styles.cta} onPress={close}>
+                  <Text style={styles.ctaText}>Done</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 function NavItem({ icon, label, active }: { icon: IconName; label: string; active?: boolean }) {
-  const color = active ? C.primary : C.textMuted;
+  const color = active ? C.text : C.textMuted;
   return (
     <Pressable style={styles.navItem}>
       <MaterialCommunityIcons name={icon} size={24} color={color} />
@@ -126,72 +150,47 @@ function NavItem({ icon, label, active }: { icon: IconName; label: string; activ
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 24, gap: 20, paddingBottom: 130 },
-
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  logo: { color: C.text, fontSize: 28, fontWeight: '800' },
-  pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.surface1, borderColor: C.border, borderWidth: 1,
-    borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12,
+  body: {
+    flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 120,
+    justifyContent: 'space-between',
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.success },
-  pillText: { color: C.text, fontSize: 12, fontWeight: '600' },
+  logo: { color: C.text, fontSize: 22, fontWeight: '800' },
 
-  help: { color: C.textSecondary, fontSize: 13 },
-  address: { color: C.text, fontSize: 22, fontWeight: '700' },
-
-  search: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: C.surface1, borderColor: C.border, borderWidth: 1,
-    borderRadius: 16, paddingHorizontal: 14,
+  sentence: { color: C.text, fontSize: 42, fontWeight: '700', letterSpacing: -1.2, lineHeight: 52 },
+  blank: {
+    color: C.accent, textDecorationLine: 'underline', textDecorationColor: C.accent,
   },
-  searchInput: { flex: 1, color: C.text, paddingVertical: 14, fontSize: 16 },
+  blankEmpty: { opacity: 0.55 },
 
-  cats: { gap: 14 },
-  cat: { alignItems: 'center', gap: 8 },
-  catIcon: {
-    width: 64, height: 64, borderRadius: 20,
-    backgroundColor: C.surface2, borderColor: C.border, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
+  cta: {
+    backgroundColor: C.text, borderRadius: 999, paddingVertical: 18, alignItems: 'center',
   },
-  catLabel: { color: C.text, fontSize: 12, fontWeight: '600' },
+  ctaOff: { backgroundColor: '#CFCDC6' },
+  ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  section: { color: C.text, fontSize: 20, fontWeight: '700' },
-  edit: { color: C.textSecondary, fontSize: 14, textDecorationLine: 'underline' },
-
-  helpers: { gap: 12 },
-  helperCard: {
-    width: 260, backgroundColor: C.surface2, borderColor: C.border, borderWidth: 1,
-    borderRadius: 20, padding: 16, gap: 16,
+  modalWrap: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet: {
+    backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24, paddingBottom: 40, gap: 4,
   },
-  helperTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface3,
-    alignItems: 'center', justifyContent: 'center',
+  sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  option: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+  optionName: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  optionExample: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
+  input: {
+    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16,
+    padding: 16, fontSize: 18, color: C.text, marginBottom: 16,
   },
-  avatarText: { color: C.text, fontSize: 18, fontWeight: '700' },
-  helperName: { color: C.text, fontSize: 16, fontWeight: '700' },
-  helperInfo: { color: C.textSecondary, fontSize: 12, marginTop: 2 },
-  helperBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  away: { color: C.success, fontSize: 13, fontWeight: '600' },
-  bookBtn: { backgroundColor: C.primary, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
-  bookText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   nav: {
     position: 'absolute', left: 16, right: 16, bottom: 20,
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.surface3, borderColor: C.border, borderWidth: 1,
+    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
     borderRadius: 28, paddingVertical: 10,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   navItem: { flex: 1, alignItems: 'center', gap: 2 },
   navLabel: { fontSize: 11, fontWeight: '600' },
-  plusSlot: { flex: 1, alignItems: 'center' },
-  plus: {
-    width: 58, height: 58, borderRadius: 29, backgroundColor: C.primary,
-    alignItems: 'center', justifyContent: 'center', marginTop: -30,
-    shadowColor: C.glowPrimary, shadowOpacity: 0.6, shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 }, elevation: 10,
-  },
 });
