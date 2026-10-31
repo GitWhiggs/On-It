@@ -5,6 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import TrackMap from '@/components/TrackMap';
 
 const C = {
@@ -87,10 +88,19 @@ function Segment({ state }: { state: SegState }) {
   );
 }
 
-export default function Jobs({ goHome }: { goHome?: () => void }) {
+export default function Jobs({
+  goHome,
+  unread,
+  onOpenChat,
+}: {
+  goHome?: () => void;
+  unread?: boolean; // helper sent a message you haven't read
+  onOpenChat?: () => void;
+}) {
   // Fake data for now. Tap the dark card to preview each step.
   const [hasJob, setHasJob] = useState(true);
   const [step, setStep] = useState(2);
+  const router = useRouter();
   const matched = step >= 1;
 
   function openHelp() {
@@ -99,7 +109,7 @@ export default function Jobs({ goHome }: { goHome?: () => void }) {
       ...(step < 2
         ? [{ text: 'Cancel request', style: 'destructive' as const, onPress: () => setHasJob(false) }]
         : []),
-      { text: 'Contact support', onPress: () => {} },
+      { text: 'Contact support', onPress: () => router.push({ pathname: '/chat/[id]', params: { id: '2', name: 'On-It Support' } }) },
       { text: 'Never mind', style: 'cancel' as const },
     ];
     Alert.alert('Need help with this job?', undefined, buttons);
@@ -176,9 +186,17 @@ export default function Jobs({ goHome }: { goHome?: () => void }) {
                   ★ {HELPER.rating} · {HELPER.jobs} jobs
                 </Text>
               </View>
-              <Pressable style={styles.msgBtn}>
+              <Pressable
+                style={styles.msgBtn}
+                onPress={() => {
+                  onOpenChat?.();
+                  router.push({ pathname: '/chat/[id]', params: { id: '1', name: HELPER.name } });
+                }}
+                accessibilityLabel={unread ? `Message ${HELPER.name}, new message` : `Message ${HELPER.name}`}
+              >
                 <MaterialCommunityIcons name="message-outline" size={18} color="#fff" />
                 <Text style={styles.msgText}>Message</Text>
+                {unread && <View style={styles.msgDot} />}
               </Pressable>
             </View>
           )}
@@ -266,6 +284,10 @@ const styles = StyleSheet.create({
     backgroundColor: C.text, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14,
   },
   msgText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  msgDot: {
+    position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6,
+    backgroundColor: '#FF5A1F', borderWidth: 2, borderColor: '#FFFFFF',
+  },
 
   details: {
     backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
@@ -288,4 +310,4 @@ const styles = StyleSheet.create({
   pastTitle: { color: C.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.4 },
   pastSub: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
   pastPrice: { color: C.text, fontSize: 18, fontWeight: '700' },
-});
+});

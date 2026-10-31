@@ -9,21 +9,23 @@ const C = {
   border: '#DAD8D1',
   text: '#111111',
   textMuted: '#9A9A94',
+  dot: '#FF5A1F',
 };
 
 const TABS: { label: string; icon: IconName }[] = [
   { label: 'Home', icon: 'home' },
   { label: 'Jobs', icon: 'briefcase-outline' },
-  { label: 'Messages', icon: 'message-outline' },
   { label: 'Account', icon: 'account-outline' },
 ];
 
 export default function BottomNav({
   index,
   onChange,
+  dots = [],
 }: {
   index: number;
   onChange: (i: number) => void;
+  dots?: number[]; // tabs that show a "new" dot, e.g. an unread message on Jobs
 }) {
   const insets = useSafeAreaInsets();
 
@@ -31,9 +33,19 @@ export default function BottomNav({
     <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
       {TABS.map((tab, i) => {
         const color = i === index ? C.text : C.textMuted;
+        const dot = dots.includes(i);
         return (
-          <Pressable key={tab.label} style={styles.item} onPress={() => onChange(i)}>
-            <MaterialCommunityIcons name={tab.icon} size={24} color={color} />
+          <Pressable
+            key={tab.label}
+            style={styles.item}
+            onPress={() => onChange(i)}
+            accessibilityRole="button"
+            accessibilityLabel={dot ? `${tab.label}, new message` : tab.label}
+          >
+            <View>
+              <MaterialCommunityIcons name={tab.icon} size={24} color={color} />
+              {dot && <View style={styles.dot} />}
+            </View>
             <Text style={[styles.label, { color }]}>{tab.label}</Text>
           </Pressable>
         );
@@ -53,4 +65,8 @@ const styles = StyleSheet.create({
   },
   item: { flex: 1, alignItems: 'center', gap: 2 },
   label: { fontSize: 11, fontWeight: '600' },
-});
+  dot: {
+    position: 'absolute', top: -1, right: -4, width: 10, height: 10, borderRadius: 5,
+    backgroundColor: C.dot, borderWidth: 2, borderColor: C.surface,
+  },
+});

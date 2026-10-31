@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-type Sheet = 'category' | 'address' | 'when' | null;
+type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
 
 const C = {
   bg: '#FAFAF7',
@@ -31,6 +31,8 @@ const TIMES = ['now', 'today', 'tomorrow', 'this weekend'];
 
 export default function Home() {
   const [category, setCategory] = useState<string | null>(null);
+  const [isCustom, setIsCustom] = useState(false); // typed in by the user, not from the list
+  const [customText, setCustomText] = useState('');
   const [address, setAddress] = useState('Storrs, CT');
   const [when, setWhen] = useState('today');
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -47,7 +49,7 @@ export default function Home() {
         <Text style={styles.sentence}>
           I need help with{' '}
           <Text style={[styles.blank, !category && styles.blankEmpty]} onPress={() => setSheet('category')}>
-            {category ? category.toLowerCase() : 'something'}
+            {category ? (isCustom ? category : category.toLowerCase()) : 'something'}
           </Text>{' '}
           at{' '}
           <Text style={styles.blank} onPress={() => setSheet('address')}>
@@ -85,12 +87,44 @@ export default function Home() {
                   <Pressable
                     key={c.name}
                     style={styles.option}
-                    onPress={() => { setCategory(c.name); close(); }}
+                    onPress={() => { setCategory(c.name); setIsCustom(false); close(); }}
                   >
                     <Text style={styles.optionName}>{c.name}</Text>
                     <Text style={styles.optionExample}>{c.example}</Text>
                   </Pressable>
                 ))}
+                {/* For jobs that aren't in the list */}
+                <Pressable style={[styles.option, styles.optionLast]} onPress={() => setSheet('custom')}>
+                  <Text style={styles.optionName}>Something else</Text>
+                  <Text style={styles.optionExample}>Tell us what you need done</Text>
+                </Pressable>
+              </>
+            )}
+
+            {sheet === 'custom' && (
+              <>
+                <Text style={styles.sheetTitle}>What do you need help with?</Text>
+                <TextInput
+                  style={styles.input}
+                  value={customText}
+                  onChangeText={setCustomText}
+                  placeholder="e.g. assembling a desk"
+                  placeholderTextColor={C.textMuted}
+                  maxLength={40}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (!customText.trim()) return;
+                    setCategory(customText.trim()); setIsCustom(true); close();
+                  }}
+                />
+                <Pressable
+                  style={[styles.cta, !customText.trim() && styles.ctaOff]}
+                  disabled={!customText.trim()}
+                  onPress={() => { setCategory(customText.trim()); setIsCustom(true); close(); }}
+                >
+                  <Text style={styles.ctaText}>Done</Text>
+                </Pressable>
               </>
             )}
 
@@ -172,6 +206,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   option: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+  optionLast: { borderBottomWidth: 0 },
   optionName: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   optionExample: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
   input: {
@@ -189,4 +224,4 @@ const styles = StyleSheet.create({
   },
   navItem: { flex: 1, alignItems: 'center', gap: 2 },
   navLabel: { fontSize: 11, fontWeight: '600' },
-});
+});
