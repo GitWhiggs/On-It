@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const C = {
   surface: '#FFFFFF',
@@ -9,29 +11,28 @@ const C = {
   textMuted: '#9A9A94',
 };
 
-// Messages and Account have no screens yet, so they don't navigate.
-const TABS = [
-  { label: 'Home', icon: 'home', path: '/home' },
-  { label: 'Jobs', icon: 'briefcase-outline', path: '/jobs' },
-  { label: 'Messages', icon: 'message-outline', path: null },
-  { label: 'Account', icon: 'account-outline', path: null },
-] as const;
+const TABS: { label: string; icon: IconName }[] = [
+  { label: 'Home', icon: 'home' },
+  { label: 'Jobs', icon: 'briefcase-outline' },
+  { label: 'Messages', icon: 'message-outline' },
+  { label: 'Account', icon: 'account-outline' },
+];
 
-export default function BottomNav() {
-  const router = useRouter();
-  const pathname = usePathname();
+export default function BottomNav({
+  index,
+  onChange,
+}: {
+  index: number;
+  onChange: (i: number) => void;
+}) {
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.nav}>
-      {TABS.map((tab) => {
-        const active = tab.path === pathname;
-        const color = active ? C.text : C.textMuted;
+    <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
+      {TABS.map((tab, i) => {
+        const color = i === index ? C.text : C.textMuted;
         return (
-          <Pressable
-            key={tab.label}
-            style={styles.item}
-            onPress={() => tab.path && !active && router.replace(tab.path as any)}
-          >
+          <Pressable key={tab.label} style={styles.item} onPress={() => onChange(i)}>
             <MaterialCommunityIcons name={tab.icon} size={24} color={color} />
             <Text style={[styles.label, { color }]}>{tab.label}</Text>
           </Pressable>
@@ -43,7 +44,7 @@ export default function BottomNav() {
 
 const styles = StyleSheet.create({
   nav: {
-    position: 'absolute', left: 16, right: 16, bottom: 20,
+    position: 'absolute', left: 16, right: 16,
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
     borderRadius: 28, paddingVertical: 10,
