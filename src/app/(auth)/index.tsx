@@ -71,7 +71,7 @@ export default function Login() {
     try {
       await confirmation.current?.confirm(code);
       // Later: open the home screen here.
-      router.replace('/home');
+      router.replace('/main');
     } catch (e) {
       if (__DEV__) console.warn('Verify failed:', e);
       setError('That code didn’t work. Check it and try again.');

@@ -5,7 +5,7 @@ import BottomNav from '@/components/BottomNav';
 import Home from '@/screens/Home';
 import Jobs from '@/screens/Jobs';
 import Messages from '@/screens/Messages';
-import Account from '@/screens/Accounts';
+import Account from '@/screens/Account';
 
 export default function Main() {
   const pager = useRef<PagerView>(null);
