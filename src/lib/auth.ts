@@ -1,31 +1,47 @@
-// Real Firebase in a custom build. Fake (mock) login in Expo Go and web.
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import {
+  getAuth as getFirebaseAuth,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
+  signOut as firebaseSignOut,
+} from '@react-native-firebase/auth';
 
-const useMock = Platform.OS === 'web' || Constants.appOwnership === 'expo';
+// Forced mock mode enabled for local development to bypass Firebase SMS billing/config blocks
+const useMock = true;
 
-type Confirmation = { confirm: (code: string) => Promise<unknown> };
 type Listener = (user: unknown) => void;
 
-let real: any = null;
-if (!useMock) {
-  real = require('@react-native-firebase/auth');
-}
-
-// Mock state, only used in Expo Go and web
+// Mock state
 let mockUser: unknown = null;
 const listeners = new Set<Listener>();
+
 function setMockUser(user: unknown) {
   mockUser = user;
   listeners.forEach((cb) => cb(user));
 }
 
 export function getAuth(): any {
-  return real ? real.getAuth() : {};
+  if (!useMock) {
+    try {
+      return getFirebaseAuth();
+    } catch (e) {
+      console.warn("Firebase Auth not ready yet", e);
+      return {};
+    }
+  }
+  return {};
 }
 
 export function onAuthStateChanged(auth: any, cb: Listener) {
-  if (real) return real.onAuthStateChanged(auth, cb);
+  if (!useMock) {
+    try {
+      return firebaseOnAuthStateChanged(auth, cb as any);
+    } catch (e) {
+      console.warn("Firebase Auth not ready yet", e);
+      return () => {};
+    }
+  }
   listeners.add(cb);
   cb(mockUser);
   return () => {
@@ -33,11 +49,17 @@ export function onAuthStateChanged(auth: any, cb: Listener) {
   };
 }
 
-export async function signInWithPhoneNumber(auth: any, phone: string): Promise<Confirmation> {
-  if (real) return real.signInWithPhoneNumber(auth, phone);
-  // Mock: any 6-digit code works
+export async function signInWithPhoneNumber(auth: any, phone: string) {
+  if (!useMock) {
+    try {
+      return await firebaseSignInWithPhoneNumber(auth, phone);
+    } catch (e) {
+      console.warn("Firebase Auth not ready yet", e);
+      throw e;
+    }
+  }
   return {
-    confirm: async () => {
+    confirm: async (code: string) => {
       setMockUser({ phoneNumber: phone });
       return true;
     },
@@ -45,6 +67,13 @@ export async function signInWithPhoneNumber(auth: any, phone: string): Promise<C
 }
 
 export async function signOut(auth: any) {
-  if (real) return real.signOut(auth);
+  if (!useMock) {
+    try {
+      return await firebaseSignOut(auth);
+    } catch (e) {
+      console.warn("Firebase Auth not ready yet", e);
+      throw e;
+    }
+  }
   setMockUser(null);
 }

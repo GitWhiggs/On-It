@@ -1,58 +1,45 @@
 {
   "expo": {
-    "name": "OnIt",
-    "slug": "on-it",
+    "name": "On-It",
+    "slug": "On-It",
     "version": "1.0.0",
-    "scheme": "onit",
     "orientation": "portrait",
     "icon": "./assets/onit-logo-square.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/OnItPinPNG.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAF7"
+    },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.onitapp.app",
-      "googleServicesFile": "./GoogleService-Info.plist",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "OnIt uses your location to show nearby helpers exactly where you are."
-      }
+      "merchantIdentifier": "merchant.com.onitapp.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.onitapp.app",
-      "googleServicesFile": "./google-services.json",
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/onit-logo-square.png"
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
       [
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "useFrameworks": "dynamic"
           }
         }
       ],
-      "expo-font",
-      "@react-native-community/datetimepicker"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "router": {
-        "asyncRoutes": {
-          "web": true
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.onitapp.app",
+          "enableGooglePay": true
         }
-      },
-      "eas": {
-        "projectId": "179c2c71-86ba-4758-8e79-83754ed32e73"
-      }
-    }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ]
   }
 }

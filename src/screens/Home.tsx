@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
@@ -21,6 +22,16 @@ const C = {
   textSecondary: '#5E5E5A',
   textMuted: '#9A9A94',
   accent: '#3B83F6', 
+};
+
+const COLORS = {
+  Moving: '#D95A44',      
+  'Yard work': '#4E8B68', 
+  Events: '#825E9D',      
+  Errands: '#C78E3D',     
+  Seasonal: '#3A8B9C',    
+  Address: '#3B83F6',     
+  Time: '#A85B7A',        
 };
 
 const CATEGORIES = [
@@ -74,7 +85,6 @@ function AnimatedTextLink({ children, onPress, style }: { children: React.ReactN
   };
 
   return (
-    // ✨ Removed the Pressable wrapper so it inherits the massive font size!
     <Animated.Text
       suppressHighlighting={true}
       onPress={onPress}
@@ -88,6 +98,7 @@ function AnimatedTextLink({ children, onPress, style }: { children: React.ReactN
 }
 
 export default function Home() {
+  const router = useRouter();
   const [category, setCategory] = useState<string | null>(null);
   const [isCustom, setIsCustom] = useState(false);
   const [customText, setCustomText] = useState('');
@@ -172,9 +183,18 @@ export default function Home() {
     closeSheet(); 
   };
 
-  const sanitizeAddress = (text: string) => {
-    const cleaned = text.replace(/\./g, '').trim();
-    return cleaned || 'my place';
+  // ✨ NEW: Strip the city/state to keep the sentence short
+  const formatAddress = (text: string) => {
+    if (!text || text === 'my place') return 'my place';
+    
+    // Take only the part before the first comma (e.g. "406 Farmington Ave, Hartford, CT" -> "406 Farmington Ave")
+    const shortStreet = text.split(',')[0].trim();
+    
+    // If it's still really long (e.g., they typed a paragraph), truncate it
+    if (shortStreet.length > 25) {
+      return shortStreet.substring(0, 22) + '...';
+    }
+    return shortStreet;
   };
 
   const handleAddressType = (text: string) => {
@@ -204,6 +224,23 @@ export default function Home() {
     handleSelect(() => setWhen(`${selectedDay} at ${hours}:${minutes} ${ampm}`));
   };
 
+  const activeCategoryColor = category && !isCustom 
+    ? COLORS[category as keyof typeof COLORS] || C.accent 
+    : C.accent;
+
+  const handleFindHelper = () => {
+    if (!category) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/create-job',
+      params: {
+        category: category,
+        address: address, // ✨ Send the FULL address to the next screen, not the shortened one
+        when: when,
+      }
+    });
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -214,16 +251,17 @@ export default function Home() {
         <Text style={styles.sentence}>
           I need help with{' '}
           <AnimatedTextLink 
-            style={[styles.blank, !category && styles.blankEmpty]} 
+            style={[styles.blank, { color: activeCategoryColor }, !category && styles.blankEmpty]} 
             onPress={() => openSheet('category')}
           >
-            {category ? (isCustom ? category : category.toLowerCase()) : 'something'}
+            {category ? category.toLowerCase() : 'something'}
           </AnimatedTextLink>{' '}
           at{' '}
-          <AnimatedTextLink style={styles.blank} onPress={openAddressSheet}>
-            {sanitizeAddress(address)}
+          <AnimatedTextLink style={[styles.blank, { color: COLORS.Address }]} onPress={openAddressSheet}>
+            {/* ✨ Use the shortened format here */}
+            {formatAddress(address)}
           </AnimatedTextLink>{' '}
-          <AnimatedTextLink style={styles.blank} onPress={() => { setTimeStep('day'); openSheet('when'); }}>
+          <AnimatedTextLink style={[styles.blank, { color: COLORS.Time }]} onPress={() => { setTimeStep('day'); openSheet('when'); }}>
             {when.toLowerCase()}
           </AnimatedTextLink>
         </Text>
@@ -231,7 +269,7 @@ export default function Home() {
         <Pressable
           style={[styles.cta, !category && styles.ctaOff]}
           disabled={!category}
-          onPress={() => {}}
+          onPress={handleFindHelper}
         >
           <Text style={styles.ctaText}>Find a helper</Text>
         </Pressable>
@@ -361,7 +399,7 @@ export default function Home() {
                       placeholder="Search address..."
                       placeholderTextColor={C.textMuted}
                       returnKeyType="done"
-                      onSubmitEditing={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}
+                      onSubmitEditing={() => handleSelect(() => setAddress(addressQuery.trim() || 'my place'))}
                     />
                     
                     {addressSuggestions.length > 0 && (
@@ -386,7 +424,7 @@ export default function Home() {
                       </View>
                     )}
 
-                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}>
+                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(addressQuery.trim() || 'my place'))}>
                       <Text style={styles.ctaText}>Done</Text>
                     </Pressable>
                   </>
@@ -400,6 +438,7 @@ export default function Home() {
   );
 }
 
+// ... styles remain the same
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   body: {
@@ -410,7 +449,7 @@ const styles = StyleSheet.create({
 
   sentence: { color: C.text, fontSize: 42, fontWeight: '700', letterSpacing: -1.2, lineHeight: 52 },
   blank: {
-    color: C.accent, 
+    fontWeight: '700',
   },
   blankEmpty: { opacity: 0.55 },
 
