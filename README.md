@@ -1,6 +1,6 @@
 # OnIt
 
-On-demand help app (Expo / React Native, TypeScript). We're building it one screen at a time.
+On-It is a local app that connects people who need a quick hand, like moving a couch, raking a yard, running an errand or setting up a party, with nearby helpers, often the same day. Customers see the price upfront and only pay once the work is done. Helpers pick the gigs they want and keep 100% of what they earn plus tips
 
 ## Run it
 
