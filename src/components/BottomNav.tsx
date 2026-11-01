@@ -30,7 +30,7 @@ export default function BottomNav({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
+    <View style={[styles.nav, { paddingBottom: insets.bottom + 8 }]}>
       {TABS.map((tab, i) => {
         const color = i === index ? C.text : C.textMuted;
         const dot = dots.includes(i);
@@ -56,12 +56,11 @@ export default function BottomNav({
 
 const styles = StyleSheet.create({
   nav: {
-    position: 'absolute', left: 16, right: 16,
+    position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
-    borderRadius: 28, paddingVertical: 10,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, elevation: 6,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border,
+    paddingTop: 8,
   },
   item: { flex: 1, alignItems: 'center', gap: 2 },
   label: { fontSize: 11, fontWeight: '600' },
@@ -69,4 +68,4 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -1, right: -4, width: 10, height: 10, borderRadius: 5,
     backgroundColor: C.dot, borderWidth: 2, borderColor: C.surface,
   },
-});
+});

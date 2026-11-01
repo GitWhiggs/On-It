@@ -4,24 +4,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TrackMap from '@/components/TrackMap';
 
 const C = {
   bg: '#FAFAF7',
-  surface: '#FFFFFF',
-  border: '#DAD8D1',
+  tile: '#EFEDE7',
+  line: '#E4E2DB',
   text: '#111111',
   textSecondary: '#5E5E5A',
   textMuted: '#9A9A94',
-  accent: '#FF5A1F',
+  accent: '#3B83F6', 
 };
 
 const HELPER = { name: 'Marcus V.', rating: '4.94', jobs: 128 };
-
 const STEPS = ['Posted', 'Matched', 'On the way', 'Here', 'Done'];
-
 const HEADLINES = [
   'Finding your helper.',
   'Marcus accepted your job.',
@@ -31,10 +29,10 @@ const HEADLINES = [
 ];
 
 const DETAILS = [
-  { label: 'Job', value: 'Moving' },
-  { label: 'Where', value: 'Storrs, CT' },
-  { label: 'When', value: 'Today' },
-  { label: 'Price', value: '$45' },
+  { label: 'Job', value: 'Moving', strong: false },
+  { label: 'Where', value: 'Storrs, CT', strong: false },
+  { label: 'When', value: 'Today', strong: false },
+  { label: 'Price', value: '$45', strong: true },
 ];
 
 const PAST = [
@@ -46,29 +44,21 @@ const PAST = [
 type SegState = 'done' | 'active' | 'todo';
 
 function segmentState(i: number, step: number): SegState {
-  if (step === STEPS.length - 1) return 'done'; // job finished: everything full
+  if (step === STEPS.length - 1) return 'done';
   if (i < step) return 'done';
   if (i === step) return 'active';
   return 'todo';
 }
 
-// One piece of the progress bar.
-// done = solid, todo = empty, active = fills up from empty again and again.
 function Segment({ state }: { state: SegState }) {
   const anim = useRef(new Animated.Value(state === 'done' ? 1 : 0)).current;
 
   useEffect(() => {
     if (state !== 'active') return undefined;
-
     anim.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 2250,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
+        Animated.timing(anim, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
         Animated.delay(250),
       ])
     );
@@ -79,66 +69,65 @@ function Segment({ state }: { state: SegState }) {
   return (
     <View style={styles.bar}>
       <Animated.View
-        style={[
-          styles.barFill,
-          { width: anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
-        ]}
+        style={[styles.barFill, { width: anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]}
       />
     </View>
   );
 }
 
-export default function Jobs({
-  goHome,
-  unread,
-  onOpenChat,
-}: {
+// ✨ Accept the props to fix the TS error, but we'll ignore onOpenChat in the function
+interface JobsProps {
   goHome?: () => void;
-  unread?: boolean; // helper sent a message you haven't read
+  unread?: boolean;
   onOpenChat?: () => void;
-}) {
-  // Fake data for now. Tap the dark card to preview each step.
-  const [hasJob, setHasJob] = useState(true);
-  const [step, setStep] = useState(2);
+}
+
+export default function Jobs({ goHome, unread }: JobsProps) {
   const router = useRouter();
+  const [hasJob, setHasJob] = useState(true);
+  const [step, setStep] = useState(0); 
   const matched = step >= 1;
+
+  const mapHelper = step === 0 ? 'none' : step >= 3 ? 'here' : 'away';
+
+  // ✨ Kept the reliable routing logic so the button works
+  function openChat() {
+    router.push({ pathname: '/chat/[id]', params: { id: '1', name: HELPER.name } });
+  }
+
+  function openSupport() {
+    router.push({ pathname: '/chat/[id]', params: { id: '2', name: 'On-It Support' } });
+  }
 
   function openHelp() {
     const buttons = [
-      // Cancelling only makes sense before the helper is on the way.
       ...(step < 2
         ? [{ text: 'Cancel request', style: 'destructive' as const, onPress: () => setHasJob(false) }]
         : []),
-      { text: 'Contact support', onPress: () => router.push({ pathname: '/chat/[id]', params: { id: '2', name: 'On-It Support' } }) },
+      { text: 'Contact support', onPress: openSupport },
       { text: 'Never mind', style: 'cancel' as const },
     ];
-    Alert.alert('Need help with this job?', undefined, buttons);
+    Alert.alert('Need help with this gig?', undefined, buttons);
   }
 
-  // No job: show the empty state instead of the page.
   if (!hasJob) {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
         <View style={styles.empty}>
           <Text style={styles.title}>Your jobs</Text>
-
           <View style={styles.emptyBody}>
             <Text style={styles.emptyHead}>Nothing yet.</Text>
             <Text style={styles.emptySub}>When you ask for help, you can follow it here.</Text>
-            <Pressable style={styles.emptyBtn} onPress={goHome}>
+            <Pressable style={styles.emptyBtn} onPress={goHome} accessibilityRole="button">
               <Text style={styles.emptyBtnText}>Ask for help</Text>
             </Pressable>
           </View>
-
-          <Pressable
-            onPress={() => {
-              setStep(2);
-              setHasJob(true);
-            }}
-          >
-            <Text style={styles.hint}>Show sample job (temporary)</Text>
-          </Pressable>
+          {__DEV__ && (
+            <Pressable onPress={() => { setStep(0); setHasJob(true); }}>
+              <Text style={styles.hint}>Show sample job (dev only)</Text>
+            </Pressable>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -150,84 +139,84 @@ export default function Jobs({
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Your jobs</Text>
 
-        <View style={{ gap: 12 }}>
-          <Text style={styles.label}>In progress</Text>
+        <Pressable
+          style={styles.live}
+          onPress={() => setStep((s) => (s + 1) % STEPS.length)}
+          accessibilityRole="button"
+          accessibilityLabel={`${HEADLINES[step]} Step ${step + 1} of ${STEPS.length}.`}
+        >
+          <Text style={styles.headline} numberOfLines={2}>
+            {HEADLINES[step]}
+          </Text>
 
-          <Pressable style={styles.live} onPress={() => setStep((s) => (s + 1) % STEPS.length)}>
-            <Text style={styles.headline}>{HEADLINES[step]}</Text>
-
-            {step === 2 && <TrackMap />}
-
-            <View style={styles.bars}>
-              {STEPS.map((name, i) => (
-                <Segment key={`${name}-${segmentState(i, step)}`} state={segmentState(i, step)} />
-              ))}
-            </View>
-            <Text style={styles.stepText}>
-              Step {step + 1} of {STEPS.length} · {STEPS[step]}
-            </Text>
-
-            {step === 4 && (
-              <Pressable style={styles.confirm}>
-                <Text style={styles.confirmText}>Yes, all good</Text>
-              </Pressable>
-            )}
+          <Pressable onPress={() => {}}>
+            <TrackMap step={step} helper={mapHelper} onActionPress={() => setHasJob(false)} />
           </Pressable>
-          <Text style={styles.hint}>Tap the card to preview each step (temporary)</Text>
 
-          {matched && (
-            <View style={styles.helperCard}>
-              <View style={styles.avatar}>
+          <View style={styles.bars}>
+            {STEPS.map((name, i) => (
+              <Segment key={`${name}-${segmentState(i, step)}`} state={segmentState(i, step)} />
+            ))}
+          </View>
+        </Pressable>
+        {__DEV__ && <Text style={styles.hint}>Dev only: tap the card to preview each step</Text>}
+
+        <View style={styles.block}>
+          <View style={[styles.row, styles.helperRow]}>
+            <View style={styles.avatar}>
+              {matched ? (
                 <Text style={styles.avatarText}>{HELPER.name[0]}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.helperName}>{HELPER.name}</Text>
-                <Text style={styles.helperSub}>
-                  ★ {HELPER.rating} · {HELPER.jobs} jobs
-                </Text>
-              </View>
+              ) : (
+                <MaterialCommunityIcons name="account-outline" size={22} color={C.textMuted} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.helperName}>{matched ? HELPER.name : 'Matching you now'}</Text>
+              <Text style={styles.helperSub}>
+                {matched ? `★ ${HELPER.rating} · ${HELPER.jobs} jobs` : 'We’ll let you know when someone accepts.'}
+              </Text>
+            </View>
+            
+            {matched && (
               <Pressable
                 style={styles.msgBtn}
-                onPress={() => {
-                  onOpenChat?.();
-                  router.push({ pathname: '/chat/[id]', params: { id: '1', name: HELPER.name } });
-                }}
-                accessibilityLabel={unread ? `Message ${HELPER.name}, new message` : `Message ${HELPER.name}`}
+                onPress={openChat} 
+                accessibilityRole="button"
+                accessibilityLabel={`Message ${HELPER.name}`}
               >
                 <MaterialCommunityIcons name="message-outline" size={18} color="#fff" />
                 <Text style={styles.msgText}>Message</Text>
-                {unread && <View style={styles.msgDot} />}
+                {unread && <View style={styles.unreadDot} />}
               </Pressable>
-            </View>
-          )}
-
-          <View style={styles.details}>
-            {DETAILS.map((d, i) => (
-              <View key={d.label} style={[styles.detailRow, i > 0 && styles.detailDivider]}>
-                <Text style={styles.detailLabel}>{d.label}</Text>
-                <Text style={styles.detailValue}>{d.value}</Text>
-              </View>
-            ))}
+            )}
           </View>
 
-          <Pressable onPress={openHelp} style={styles.helpLink}>
-            <Text style={styles.helpText}>Need help with this job?</Text>
+          {DETAILS.map((d) => (
+            <View key={d.label} style={[styles.row, styles.detailRow]}>
+              <Text style={styles.detailLabel}>{d.label}</Text>
+              <Text style={[styles.detailValue, d.strong && styles.detailStrong]}>{d.value}</Text>
+            </View>
+          ))}
+
+          <Pressable style={[styles.row, styles.helpRow]} onPress={openHelp} accessibilityRole="button">
+            <Text style={styles.helpText}>Need help with this gig?</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={C.textMuted} />
           </Pressable>
         </View>
 
         <View>
-          <Text style={styles.label}>Past</Text>
-          {PAST.map((job) => (
-            <View key={job.date} style={styles.pastRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.pastTitle}>{job.category}</Text>
-                <Text style={styles.pastSub}>
-                  {job.date} · {job.helper}
-                </Text>
+          <Text style={styles.sectionTitle}>Past</Text>
+          <View style={styles.block}>
+            {PAST.map((job) => (
+              <View key={job.date} style={[styles.row, styles.pastRow]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pastTitle}>{job.category}</Text>
+                  <Text style={styles.pastSub}>{job.date} · {job.helper}</Text>
+                </View>
+                <Text style={styles.pastPrice}>{job.price}</Text>
               </View>
-              <Text style={styles.pastPrice}>{job.price}</Text>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -236,78 +225,44 @@ export default function Jobs({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 130, gap: 32 },
-
-  title: { color: C.text, fontSize: 44, fontWeight: '800', letterSpacing: -1.5 },
-  label: {
-    color: C.textMuted, fontSize: 13, fontWeight: '700', letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
+  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 130, gap: 24 },
+  title: { color: C.text, fontSize: 32, fontWeight: '800', letterSpacing: -0.8 },
+  sectionTitle: { color: C.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 8 },
+  hint: { color: C.textMuted, fontSize: 12, marginTop: -12 },
 
   empty: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 130 },
-  emptyBody: { flex: 1, justifyContent: 'center', gap: 14 },
-  emptyHead: { color: C.text, fontSize: 48, fontWeight: '800', letterSpacing: -1.5 },
-  emptySub: { color: C.textSecondary, fontSize: 18, lineHeight: 26, maxWidth: 300 },
-  emptyBtn: {
-    alignSelf: 'flex-start', backgroundColor: C.text, borderRadius: 999,
-    paddingVertical: 16, paddingHorizontal: 28, marginTop: 10,
-  },
-  emptyBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  emptyBody: { flex: 1, justifyContent: 'center', gap: 12 },
+  emptyHead: { color: C.text, fontSize: 40, fontWeight: '800', letterSpacing: -1 },
+  emptySub: { color: C.textSecondary, fontSize: 17, lineHeight: 24, maxWidth: 300 },
+  emptyBtn: { alignSelf: 'flex-start', backgroundColor: C.text, borderRadius: 999, paddingVertical: 14, paddingHorizontal: 24, marginTop: 8 },
+  emptyBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  live: { backgroundColor: C.text, borderRadius: 28, padding: 20, gap: 18 },
-  headline: { color: '#fff', fontSize: 38, fontWeight: '800', letterSpacing: -1.2, lineHeight: 42 },
+  live: { backgroundColor: C.text, borderRadius: 20, padding: 20, gap: 16 },
+  headline: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: -0.6, lineHeight: 34, minHeight: 68 },
   bars: { flexDirection: 'row', gap: 6 },
-  bar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#3A3A38', overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: C.accent, borderRadius: 3 },
-  stepText: { color: '#C9C7C0', fontSize: 14, fontWeight: '600' },
-  hint: { color: C.textMuted, fontSize: 12 },
+  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#3A3A38', overflow: 'hidden' },
+  barFill: { height: '100%', backgroundColor: C.accent, borderRadius: 2 },
 
-  confirm: {
-    backgroundColor: C.accent, borderRadius: 999, paddingVertical: 14, alignItems: 'center',
-  },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
-  helperCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
-    borderRadius: 24, padding: 16,
-  },
-  avatar: {
-    width: 52, height: 52, borderRadius: 26, backgroundColor: C.accent,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  helperName: { color: C.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  block: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line },
+  row: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
+  helperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.tile, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: C.text, fontSize: 18, fontWeight: '700' },
+  helperName: { color: C.text, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
   helperSub: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
-  msgBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.text, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14,
-  },
-  msgText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  msgDot: {
-    position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#FF5A1F', borderWidth: 2, borderColor: '#FFFFFF',
-  },
+  
+  msgBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.text, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 18 },
+  msgText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent, marginLeft: 2 },
 
-  details: {
-    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
-    borderRadius: 24, paddingHorizontal: 20,
-  },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16 },
-  detailDivider: { borderTopWidth: 1, borderTopColor: C.border },
-  detailLabel: { color: C.textSecondary, fontSize: 16 },
-  detailValue: { color: C.text, fontSize: 16, fontWeight: '700' },
-
-  helpLink: { alignSelf: 'center', paddingVertical: 8 },
-  helpText: {
-    color: C.textSecondary, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline',
-  },
-
-  pastRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  pastTitle: { color: C.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
+  detailLabel: { color: C.textSecondary, fontSize: 15 },
+  detailValue: { color: C.text, fontSize: 15, fontWeight: '500' },
+  detailStrong: { fontWeight: '800' },
+  helpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
+  helpText: { color: C.text, fontSize: 16, fontWeight: '500' },
+  pastRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  pastTitle: { color: C.text, fontSize: 17, fontWeight: '600' },
   pastSub: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
-  pastPrice: { color: C.text, fontSize: 18, fontWeight: '700' },
-});
+  pastPrice: { color: C.text, fontSize: 16, fontWeight: '600' },
+});

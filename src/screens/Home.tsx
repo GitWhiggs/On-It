@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Animated, Dimensions, Keyboard, Easing
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const C = {
   bg: '#FAFAF7',
@@ -16,7 +20,7 @@ const C = {
   text: '#111111',
   textSecondary: '#5E5E5A',
   textMuted: '#9A9A94',
-  accent: '#0F7B5F',
+  accent: '#3B83F6', 
 };
 
 const CATEGORIES = [
@@ -27,17 +31,178 @@ const CATEGORIES = [
   { name: 'Seasonal', example: 'Snow shoveling, holiday lights' },
 ];
 
-const TIMES = ['now', 'today', 'tomorrow', 'this weekend'];
+const MOCK_ADDRESSES = [
+  '123 Main St, Storrs, CT',
+  '45 Eagleville Rd, Storrs, CT',
+  '1 University Pl, Storrs, CT',
+  '406 Farmington Ave, Hartford, CT',
+  '800 Main St, Willimantic, CT',
+];
+
+function AnimatedTextLink({ children, onPress, style }: { children: React.ReactNode; onPress: () => void; style?: any }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  
+  const textContent = React.Children.toArray(children).join('');
+  const prevText = useRef(textContent);
+
+  useEffect(() => {
+    if (prevText.current !== textContent) {
+      opacity.setValue(0);
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+      prevText.current = textContent;
+    }
+  }, [textContent]);
+
+  const handlePressIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 60, bounciness: 0 }),
+      Animated.timing(opacity, { toValue: 0.5, duration: 100, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }),
+      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  };
+
+  return (
+    // ✨ Removed the Pressable wrapper so it inherits the massive font size!
+    <Animated.Text
+      suppressHighlighting={true}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[style, { transform: [{ scale }], opacity }]}
+    >
+      {children}
+    </Animated.Text>
+  );
+}
 
 export default function Home() {
   const [category, setCategory] = useState<string | null>(null);
-  const [isCustom, setIsCustom] = useState(false); // typed in by the user, not from the list
+  const [isCustom, setIsCustom] = useState(false);
   const [customText, setCustomText] = useState('');
-  const [address, setAddress] = useState('Storrs, CT');
-  const [when, setWhen] = useState('today');
-  const [sheet, setSheet] = useState<Sheet>(null);
+  
+  const [address, setAddress] = useState('my place');
+  const [addressQuery, setAddressQuery] = useState('');
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
 
-  const close = () => setSheet(null);
+  const [when, setWhen] = useState('As soon as possible');
+  const [timeStep, setTimeStep] = useState<'day' | 'time'>('day'); 
+  const [selectedDay, setSelectedDay] = useState('Today');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardHeight, {
+        toValue: e.endCoordinates.height,
+        duration: e.duration || 250,
+        useNativeDriver: false, 
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardHeight, {
+        toValue: 0,
+        duration: e.duration || 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const openSheet = (sheetType: Sheet) => {
+    keyboardHeight.setValue(0); 
+
+    setSheet(sheetType);
+    setModalVisible(true);
+    
+    slideAnim.setValue(SCREEN_HEIGHT);
+    fadeAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, damping: 20, stiffness: 200, useNativeDriver: true })
+    ]).start();
+  };
+
+  const closeSheet = () => {
+    Keyboard.dismiss(); 
+    keyboardHeight.setValue(0); 
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(slideAnim, { 
+        toValue: SCREEN_HEIGHT, 
+        duration: 250, 
+        easing: Easing.out(Easing.cubic), 
+        useNativeDriver: true 
+      })
+    ]).start(() => {
+      setModalVisible(false);
+      setSheet(null);
+    });
+  };
+
+  const handleSelect = (action: () => void) => {
+    action(); 
+    closeSheet(); 
+  };
+
+  const sanitizeAddress = (text: string) => {
+    const cleaned = text.replace(/\./g, '').trim();
+    return cleaned || 'my place';
+  };
+
+  const handleAddressType = (text: string) => {
+    setAddressQuery(text);
+    setAddress(text); 
+    if (text.length > 1) {
+      const filtered = MOCK_ADDRESSES.filter(a => a.toLowerCase().includes(text.toLowerCase()));
+      setAddressSuggestions(filtered.length === 0 ? [text] : filtered);
+    } else {
+      setAddressSuggestions([]);
+    }
+  };
+
+  const openAddressSheet = () => {
+    const current = address === 'my place' ? '' : address;
+    setAddressQuery(current);
+    setAddressSuggestions([]);
+    openSheet('address');
+  };
+
+  const confirmTime = () => {
+    let hours = selectedDate.getHours();
+    const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; 
+    handleSelect(() => setWhen(`${selectedDay} at ${hours}:${minutes} ${ampm}`));
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -48,17 +213,19 @@ export default function Home() {
 
         <Text style={styles.sentence}>
           I need help with{' '}
-          <Text style={[styles.blank, !category && styles.blankEmpty]} onPress={() => setSheet('category')}>
+          <AnimatedTextLink 
+            style={[styles.blank, !category && styles.blankEmpty]} 
+            onPress={() => openSheet('category')}
+          >
             {category ? (isCustom ? category : category.toLowerCase()) : 'something'}
-          </Text>{' '}
+          </AnimatedTextLink>{' '}
           at{' '}
-          <Text style={styles.blank} onPress={() => setSheet('address')}>
-            {address.trim() || 'your address'}
-          </Text>{' '}
-          <Text style={styles.blank} onPress={() => setSheet('when')}>
-            {when}
-          </Text>
-          .
+          <AnimatedTextLink style={styles.blank} onPress={openAddressSheet}>
+            {sanitizeAddress(address)}
+          </AnimatedTextLink>{' '}
+          <AnimatedTextLink style={styles.blank} onPress={() => { setTimeStep('day'); openSheet('when'); }}>
+            {when.toLowerCase()}
+          </AnimatedTextLink>
         </Text>
 
         <Pressable
@@ -70,111 +237,166 @@ export default function Home() {
         </Pressable>
       </View>
 
-      <View style={styles.nav}>
-      </View>
+      <View style={styles.nav}></View>
 
-      <Modal visible={sheet !== null} transparent animationType="slide" onRequestClose={close}>
-        <KeyboardAvoidingView
-          style={styles.modalWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <Pressable style={styles.backdrop} onPress={close} />
-          <View style={styles.sheet}>
-            {sheet === 'category' && (
-              <>
-                <Text style={styles.sheetTitle}>What do you need help with?</Text>
-                {CATEGORIES.map((c) => (
-                  <Pressable
-                    key={c.name}
-                    style={styles.option}
-                    onPress={() => { setCategory(c.name); setIsCustom(false); close(); }}
-                  >
-                    <Text style={styles.optionName}>{c.name}</Text>
-                    <Text style={styles.optionExample}>{c.example}</Text>
-                  </Pressable>
-                ))}
-                {/* For jobs that aren't in the list */}
-                <Pressable style={[styles.option, styles.optionLast]} onPress={() => setSheet('custom')}>
-                  <Text style={styles.optionName}>Something else</Text>
-                  <Text style={styles.optionExample}>Tell us what you need done</Text>
-                </Pressable>
-              </>
-            )}
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => closeSheet()}>
+        <View style={styles.modalRoot}>
+          
+          <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeSheet()} />
+          </Animated.View>
 
-            {sheet === 'custom' && (
-              <>
-                <Text style={styles.sheetTitle}>What do you need help with?</Text>
-                <TextInput
-                  style={styles.input}
-                  value={customText}
-                  onChangeText={setCustomText}
-                  placeholder="e.g. assembling a desk"
-                  placeholderTextColor={C.textMuted}
-                  maxLength={40}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    if (!customText.trim()) return;
-                    setCategory(customText.trim()); setIsCustom(true); close();
-                  }}
-                />
-                <Pressable
-                  style={[styles.cta, !customText.trim() && styles.ctaOff]}
-                  disabled={!customText.trim()}
-                  onPress={() => { setCategory(customText.trim()); setIsCustom(true); close(); }}
-                >
-                  <Text style={styles.ctaText}>Done</Text>
-                </Pressable>
-              </>
-            )}
+          <Animated.View 
+            style={[styles.modalWrap, { paddingBottom: keyboardHeight }]} 
+            pointerEvents="box-none"
+          >
+            <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+              <ScrollView bounces={false} keyboardShouldPersistTaps="handled">
+                
+                {sheet === 'category' && (
+                  <>
+                    <Text style={styles.sheetTitle}>What do you need help with?</Text>
+                    {CATEGORIES.map((c) => (
+                      <Pressable
+                        key={c.name}
+                        style={styles.option}
+                        onPress={() => handleSelect(() => { setCategory(c.name); setIsCustom(false); })}
+                      >
+                        <Text style={styles.optionName}>{c.name}</Text>
+                        <Text style={styles.optionExample}>{c.example}</Text>
+                      </Pressable>
+                    ))}
+                    <Pressable style={[styles.option, styles.optionLast]} onPress={() => setSheet('custom')}>
+                      <Text style={styles.optionName}>Something else</Text>
+                    </Pressable>
+                  </>
+                )}
 
-            {sheet === 'when' && (
-              <>
-                <Text style={styles.sheetTitle}>When?</Text>
-                {TIMES.map((t) => (
-                  <Pressable
-                    key={t}
-                    style={styles.option}
-                    onPress={() => { setWhen(t); close(); }}
-                  >
-                    <Text style={styles.optionName}>{t}</Text>
-                  </Pressable>
-                ))}
-              </>
-            )}
+                {sheet === 'custom' && (
+                  <>
+                    <Text style={styles.sheetTitle}>What do you need help with?</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={customText}
+                      onChangeText={setCustomText}
+                      placeholder="e.g. assembling a desk"
+                      placeholderTextColor={C.textMuted}
+                      maxLength={40}
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        if (!customText.trim()) return;
+                        handleSelect(() => { setCategory(customText.trim()); setIsCustom(true); });
+                      }}
+                    />
+                    <Pressable
+                      style={[styles.cta, !customText.trim() && styles.ctaOff]}
+                      disabled={!customText.trim()}
+                      onPress={() => handleSelect(() => { setCategory(customText.trim()); setIsCustom(true); })}
+                    >
+                      <Text style={styles.ctaText}>Done</Text>
+                    </Pressable>
+                  </>
+                )}
 
-            {sheet === 'address' && (
-              <>
-                <Text style={styles.sheetTitle}>Where should they go?</Text>
-                <TextInput
-                  style={styles.input}
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholder="Street address"
-                  placeholderTextColor={C.textMuted}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={close}
-                />
-                <Pressable style={styles.cta} onPress={close}>
-                  <Text style={styles.ctaText}>Done</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+                {sheet === 'when' && timeStep === 'day' && (
+                  <>
+                    <Text style={styles.sheetTitle}>When do you need help?</Text>
+                    <Pressable
+                      style={styles.option}
+                      onPress={() => handleSelect(() => setWhen('As soon as possible'))}
+                    >
+                      <Text style={styles.optionName}>As soon as possible</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.option}
+                      onPress={() => { setSelectedDay('Today'); setTimeStep('time'); }}
+                    >
+                      <Text style={styles.optionName}>Today</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.option, styles.optionLast]}
+                      onPress={() => { setSelectedDay('Tomorrow'); setTimeStep('time'); }}
+                    >
+                      <Text style={styles.optionName}>Tomorrow</Text>
+                    </Pressable>
+                  </>
+                )}
+
+                {sheet === 'when' && timeStep === 'time' && (
+                  <>
+                    <Pressable onPress={() => setTimeStep('day')} style={{ marginBottom: 8 }}>
+                      <Text style={{ color: C.accent, fontWeight: '600' }}>← Back</Text>
+                    </Pressable>
+                    <Text style={styles.sheetTitle}>What time {selectedDay.toLowerCase()}?</Text>
+                    
+                    <View style={styles.pickerContainer}>
+                      <DateTimePicker
+                        value={selectedDate}
+                        mode="time"
+                        display="spinner"
+                        onChange={(event: DateTimePickerEvent, date?: Date) => {
+                          if (date) {
+                            setSelectedDate(date);
+                            Haptics.selectionAsync();
+                          }
+                        }}
+                        style={styles.picker}
+                        textColor={C.text}
+                      />
+                    </View>
+
+                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={confirmTime}>
+                      <Text style={styles.ctaText}>Confirm Time</Text>
+                    </Pressable>
+                  </>
+                )}
+
+                {sheet === 'address' && (
+                  <>
+                    <Text style={styles.sheetTitle}>Where should they go?</Text>
+                    <TextInput
+                      style={[styles.input, addressSuggestions.length > 0 && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 }]}
+                      value={addressQuery}
+                      onChangeText={handleAddressType}
+                      placeholder="Search address..."
+                      placeholderTextColor={C.textMuted}
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}
+                    />
+                    
+                    {addressSuggestions.length > 0 && (
+                      <View style={styles.suggestionsBox}>
+                        {addressSuggestions.map((suggestion, index) => (
+                          <Pressable
+                            key={suggestion}
+                            style={[
+                              styles.suggestionItem,
+                              index === addressSuggestions.length - 1 && { borderBottomWidth: 0 }
+                            ]}
+                            onPress={() => {
+                              setAddressQuery(suggestion);
+                              setAddressSuggestions([]);
+                              handleSelect(() => setAddress(suggestion));
+                            }}
+                          >
+                            <MaterialCommunityIcons name="map-marker-outline" size={20} color={C.textSecondary} />
+                            <Text style={styles.suggestionText} numberOfLines={1}>{suggestion}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+
+                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}>
+                      <Text style={styles.ctaText}>Done</Text>
+                    </Pressable>
+                  </>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
-  );
-}
-
-function NavItem({ icon, label, active }: { icon: IconName; label: string; active?: boolean }) {
-  const color = active ? C.text : C.textMuted;
-  return (
-    <Pressable style={styles.navItem}>
-      <MaterialCommunityIcons name={icon} size={24} color={color} />
-      <Text style={[styles.navLabel, { color }]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -188,7 +410,7 @@ const styles = StyleSheet.create({
 
   sentence: { color: C.text, fontSize: 42, fontWeight: '700', letterSpacing: -1.2, lineHeight: 52 },
   blank: {
-    color: C.accent, textDecorationLine: 'underline', textDecorationColor: C.accent,
+    color: C.accent, 
   },
   blankEmpty: { opacity: 0.55 },
 
@@ -198,20 +420,65 @@ const styles = StyleSheet.create({
   ctaOff: { backgroundColor: '#CFCDC6' },
   ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 
-  modalWrap: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.35)' },
+  modalRoot: { flex: 1 },
+  backdrop: { 
+    position: 'absolute',
+    top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)' 
+  },
+  modalWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   sheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: 40, gap: 4,
+    padding: 24, paddingBottom: 40, maxHeight: '85%', 
   },
-  sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 16 },
   option: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   optionLast: { borderBottomWidth: 0 },
-  optionName: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  
+  optionName: { color: C.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.2 }, 
   optionExample: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
+  
   input: {
     backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16,
     padding: 16, fontSize: 18, color: C.text, marginBottom: 16,
+    letterSpacing: 0, 
+  },
+
+  pickerContainer: {
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+    height: 180, 
+    justifyContent: 'center',
+  },
+  picker: { width: '100%', height: '100%' },
+
+  suggestionsBox: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  suggestionText: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: '500',
   },
 
   nav: {
@@ -224,4 +491,4 @@ const styles = StyleSheet.create({
   },
   navItem: { flex: 1, alignItems: 'center', gap: 2 },
   navLabel: { fontSize: 11, fontWeight: '600' },
-});
+});

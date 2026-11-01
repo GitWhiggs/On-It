@@ -15,16 +15,14 @@ const C = {
   userBlue: '#3B82F6',
   text: '#111111',
   textSecondary: '#6B6960',
-  accent: '#FF5A1F',
+  accent: '#3B83F6', 
 };
 
-const STEPS = ['Posted', 'Matched', 'On the way', 'Here', 'Done'];
+const STEPS = ['On the way', 'Here', 'Done'];
 const HEADLINES = [
-  'Finding your helper.',
-  'Marcus accepted your job.',
   'Marcus is on the way.',
   'Marcus is here.',
-  'Marcus finished. All good?',
+  'Job completed.',
 ];
 
 type SegState = 'done' | 'active' | 'todo';
@@ -103,7 +101,10 @@ export default function ChatRoom() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [fullscreenImageUri, setFullscreenImageUri] = useState<string | null>(null);
-  const [step, setStep] = useState(2);
+  
+  // Default step for the chat view
+  const [step] = useState(0); 
+  
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -177,7 +178,6 @@ export default function ChatRoom() {
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       
-      {/* Flat Header */}
       <View style={styles.header}>
         <Pressable 
           onPress={() => {
@@ -213,8 +213,15 @@ export default function ChatRoom() {
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
         >
-          {/* Flat Pinned Progress Widget */}
-          <Pressable style={styles.live} onPress={() => setStep((s) => (s + 1) % STEPS.length)}>
+          
+          {/* Tapping the progress card now takes you back to the Jobs screen */}
+          <Pressable 
+            style={styles.live} 
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.back(); 
+            }}
+          >
             <View style={styles.liveTopRow}>
               <Text style={styles.headline}>{HEADLINES[step]}</Text>
               <View style={styles.gigPriceBadge}>
@@ -227,10 +234,6 @@ export default function ChatRoom() {
                 <Segment key={`${name}-${segmentState(i, step)}`} state={segmentState(i, step)} />
               ))}
             </View>
-            
-            <Text style={styles.stepText}>
-              Step {step + 1} of {STEPS.length} · {STEPS[step]}
-            </Text>
           </Pressable>
 
           {messages.map((m) => {
@@ -269,7 +272,6 @@ export default function ChatRoom() {
           })}
         </ScrollView>
 
-        {/* Full-Screen Image Preview Modal */}
         <Modal
           visible={fullscreenImageUri !== null}
           transparent={true}
@@ -286,7 +288,6 @@ export default function ChatRoom() {
           </View>
         </Modal>
 
-        {/* Flat Bottom Toolbar with Synchronized Flow Spacing */}
         <SafeAreaView edges={['bottom']} style={[styles.bottomToolbar, isKeyboardVisible && { paddingBottom: Platform.OS === 'ios' ? 4 : 0 }]}>
           {!isKeyboardVisible && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
@@ -381,10 +382,10 @@ const styles = StyleSheet.create({
   headline: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.8, flex: 1, lineHeight: 26 },
   gigPriceBadge: { backgroundColor: C.accent, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   gigPriceText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  bars: { flexDirection: 'row', gap: 5 },
+  
+  bars: { flexDirection: 'row', gap: 6 },
   bar: { flex: 1, height: 5, borderRadius: 2.5, backgroundColor: '#3A3A38', overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: C.accent, borderRadius: 2.5 },
-  stepText: { color: '#C9C7C0', fontSize: 12, fontWeight: '600' },
 
   chatScroll: { padding: 16, paddingTop: 16, gap: 12, flexGrow: 1 },
 
@@ -399,14 +400,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     gap: 2,
   },
-  bubbleHelper: { 
-    backgroundColor: C.helperFlat, 
-    borderTopLeftRadius: 4, 
-  },
-  bubbleUser: { 
-    backgroundColor: C.userBlue, 
-    borderTopRightRadius: 4, 
-  },
+  bubbleHelper: { backgroundColor: C.helperFlat, borderTopLeftRadius: 4 },
+  bubbleUser: { backgroundColor: C.userBlue, borderTopRightRadius: 4 },
 
   imageOnlyContainer: {
     maxWidth: '78%',
@@ -415,11 +410,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: 'transparent',
   },
-  attachedImage: {
-    width: 200,
-    height: 140,
-    borderRadius: 14,
-  },
+  attachedImage: { width: 200, height: 140, borderRadius: 14 },
   
   timestampBlob: {
     alignSelf: 'flex-end',
@@ -429,11 +420,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
-  blobTimestampText: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: C.textSecondary,
-  },
+  blobTimestampText: { fontSize: 9.5, fontWeight: '600', color: C.textSecondary },
 
   modalContainer: {
     flex: 1,
@@ -455,12 +442,7 @@ const styles = StyleSheet.create({
   },
   fullscreenImage: { width: '100%', height: '80%' },
 
-  bubbleText: { 
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto', 
-    fontSize: 14.5, 
-    lineHeight: 19, 
-    fontWeight: '400' 
-  },
+  bubbleText: { fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto', fontSize: 14.5, lineHeight: 19, fontWeight: '400' },
   textHelper: { color: C.text },
   textUser: { color: '#fff' },
 
@@ -472,22 +454,9 @@ const styles = StyleSheet.create({
     backgroundColor: C.surfaceFlat,
     paddingTop: 6,
   },
-  chipsScroll: {
-    paddingHorizontal: 14,
-    paddingBottom: 6,
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: C.inputFlat,
-    borderRadius: 99,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.text,
-  },
+  chipsScroll: { paddingHorizontal: 14, paddingBottom: 6, gap: 8 },
+  chip: { backgroundColor: C.inputFlat, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7 },
+  chipText: { fontSize: 13, fontWeight: '600', color: C.text },
 
   inputContainer: {
     flexDirection: 'row',
@@ -530,9 +499,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inlineDictateBtnActive: {
-    backgroundColor: '#EF4444',
-  },
+  inlineDictateBtnActive: { backgroundColor: '#EF4444' },
   sendBtn: {
     width: 36,
     height: 36,
