@@ -25,13 +25,15 @@ const C = {
 };
 
 const COLORS = {
-  Moving: '#D95A44',      
-  'Yard work': '#4E8B68', 
-  Events: '#825E9D',      
-  Errands: '#C78E3D',     
-  Seasonal: '#3A8B9C',    
-  Address: '#3B83F6',     
-  Time: '#A85B7A',        
+  Moving: '#EF4444',      
+  'Yard work': '#15803D', 
+  Events: '#A855F7',      
+  Errands: '#10B981',     
+  Seasonal: '#06B6D4',    
+  Custom: '#F97316',      
+  Address: '#2563EB',     
+  Time: '#EC4899',        
+  Placeholder: '#71717A', // ✨ A clean, neutral slate gray for "something"
 };
 
 const CATEGORIES = [
@@ -183,14 +185,9 @@ export default function Home() {
     closeSheet(); 
   };
 
-  // ✨ NEW: Strip the city/state to keep the sentence short
   const formatAddress = (text: string) => {
     if (!text || text === 'my place') return 'my place';
-    
-    // Take only the part before the first comma (e.g. "406 Farmington Ave, Hartford, CT" -> "406 Farmington Ave")
     const shortStreet = text.split(',')[0].trim();
-    
-    // If it's still really long (e.g., they typed a paragraph), truncate it
     if (shortStreet.length > 25) {
       return shortStreet.substring(0, 22) + '...';
     }
@@ -224,9 +221,11 @@ export default function Home() {
     handleSelect(() => setWhen(`${selectedDay} at ${hours}:${minutes} ${ampm}`));
   };
 
-  const activeCategoryColor = category && !isCustom 
-    ? COLORS[category as keyof typeof COLORS] || C.accent 
-    : C.accent;
+  const activeCategoryColor = category 
+    ? (isCustom 
+        ? COLORS.Custom 
+        : COLORS[category as keyof typeof COLORS] || C.accent)
+    : COLORS.Placeholder; // ✨ Falls back to neutral gray when nothing is selected
 
   const handleFindHelper = () => {
     if (!category) return;
@@ -235,7 +234,7 @@ export default function Home() {
       pathname: '/create-job',
       params: {
         category: category,
-        address: address, // ✨ Send the FULL address to the next screen, not the shortened one
+        address: address,
         when: when,
       }
     });
@@ -258,7 +257,6 @@ export default function Home() {
           </AnimatedTextLink>{' '}
           at{' '}
           <AnimatedTextLink style={[styles.blank, { color: COLORS.Address }]} onPress={openAddressSheet}>
-            {/* ✨ Use the shortened format here */}
             {formatAddress(address)}
           </AnimatedTextLink>{' '}
           <AnimatedTextLink style={[styles.blank, { color: COLORS.Time }]} onPress={() => { setTimeStep('day'); openSheet('when'); }}>
@@ -372,6 +370,7 @@ export default function Home() {
                         value={selectedDate}
                         mode="time"
                         display="spinner"
+                        minuteInterval={15}
                         onChange={(event: DateTimePickerEvent, date?: Date) => {
                           if (date) {
                             setSelectedDate(date);
@@ -438,7 +437,6 @@ export default function Home() {
   );
 }
 
-// ... styles remain the same
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   body: {

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
+  Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TrackMap from '@/components/TrackMap';
+import { supabase } from '@/lib/supabase';
 
 const C = {
   bg: '#FAFAF7',
@@ -26,19 +27,6 @@ const HEADLINES = [
   'Marcus is on the way.',
   'Marcus is here.',
   'Marcus finished. All good?',
-];
-
-const DETAILS = [
-  { label: 'Job', value: 'Moving', strong: false },
-  { label: 'Where', value: 'Storrs, CT', strong: false },
-  { label: 'When', value: 'Today', strong: false },
-  { label: 'Price', value: '$45', strong: true },
-];
-
-const PAST = [
-  { category: 'Yard work', date: 'Oct 18', helper: 'Dana R.', price: '$60' },
-  { category: 'Errands', date: 'Oct 9', helper: 'Marcus V.', price: '$25' },
-  { category: 'Events', date: 'Sep 28', helper: 'Dana R.', price: '$80' },
 ];
 
 type SegState = 'done' | 'active' | 'todo';
@@ -75,7 +63,6 @@ function Segment({ state }: { state: SegState }) {
   );
 }
 
-// ✨ Accept the props to fix the TS error, but we'll ignore onOpenChat in the function
 interface JobsProps {
   goHome?: () => void;
   unread?: boolean;
@@ -85,12 +72,76 @@ interface JobsProps {
 export default function Jobs({ goHome, unread }: JobsProps) {
   const router = useRouter();
   const [hasJob, setHasJob] = useState(true);
+  const [activeJob, setActiveJob] = useState<any>(null);
+  const [pastJobs, setPastJobs] = useState<any[]>([]);
+  const [loadingJob, setLoadingJob] = useState(true);
   const [step, setStep] = useState(0); 
   const matched = step >= 1;
 
   const mapHelper = step === 0 ? 'none' : step >= 3 ? 'here' : 'away';
 
-  // ✨ Kept the reliable routing logic so the button works
+  // Fetch active and past jobs from Supabase when the tab mounts
+  useEffect(() => {
+    async function fetchJobsData() {
+      try {
+        // Fetch latest active job
+        const { data: activeData, error: activeError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (activeData && !activeError) {
+          setActiveJob(activeData);
+          setHasJob(true);
+        } else {
+          setActiveJob(null);
+        }
+
+        // Fetch completed/past jobs
+        const { data: pastData, error: pastError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false });
+
+        if (pastData && !pastError) {
+          setPastJobs(pastData);
+        }
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+      } finally {
+        setLoadingJob(false);
+      }
+    }
+
+    fetchJobsData();
+  }, []);
+
+  // Handle completing the job when the user taps "Yes, all good"
+  async function handleCompleteJob() {
+    if (!activeJob?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .update({ status: 'completed' })
+        .eq('id', activeJob.id);
+
+      if (!error) {
+        setPastJobs((prev) => [activeJob, ...prev]);
+        setActiveJob(null);
+        setHasJob(false);
+      } else {
+        console.error('Error updating job status:', error.message);
+      }
+    } catch (err) {
+      console.error('Error completing job:', err);
+    }
+  }
+
   function openChat() {
     router.push({ pathname: '/chat/[id]', params: { id: '1', name: HELPER.name } });
   }
@@ -110,7 +161,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
     Alert.alert('Need help with this gig?', undefined, buttons);
   }
 
-  if (!hasJob) {
+  if (!hasJob || (!loadingJob && !activeJob)) {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
@@ -150,7 +201,11 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           </Text>
 
           <Pressable onPress={() => {}}>
-            <TrackMap step={step} helper={mapHelper} onActionPress={() => setHasJob(false)} />
+            <TrackMap 
+              step={step} 
+              helper={mapHelper} 
+              onActionPress={handleCompleteJob} 
+            />
           </Pressable>
 
           <View style={styles.bars}>
@@ -191,12 +246,25 @@ export default function Jobs({ goHome, unread }: JobsProps) {
             )}
           </View>
 
-          {DETAILS.map((d) => (
-            <View key={d.label} style={[styles.row, styles.detailRow]}>
-              <Text style={styles.detailLabel}>{d.label}</Text>
-              <Text style={[styles.detailValue, d.strong && styles.detailStrong]}>{d.value}</Text>
-            </View>
-          ))}
+          {/* Dynamic Live Job Details fetched from Supabase */}
+          <View style={[styles.row, styles.detailRow]}>
+            <Text style={styles.detailLabel}>Job</Text>
+            <Text style={styles.detailValue}>{activeJob?.category || 'General Help'}</Text>
+          </View>
+          <View style={[styles.row, styles.detailRow]}>
+            <Text style={styles.detailLabel}>Where</Text>
+            <Text style={styles.detailValue}>{activeJob?.address || 'my place'}</Text>
+          </View>
+          <View style={[styles.row, styles.detailRow]}>
+            <Text style={styles.detailLabel}>When</Text>
+            <Text style={styles.detailValue}>{activeJob?.when_text || 'As soon as possible'}</Text>
+          </View>
+          <View style={[styles.row, styles.detailRow]}>
+            <Text style={styles.detailLabel}>Price</Text>
+            <Text style={[styles.detailValue, styles.detailStrong]}>
+              {activeJob ? `$${Number(activeJob.amount).toFixed(2)}` : '$0.00'}
+            </Text>
+          </View>
 
           <Pressable style={[styles.row, styles.helpRow]} onPress={openHelp} accessibilityRole="button">
             <Text style={styles.helpText}>Need help with this gig?</Text>
@@ -204,18 +272,27 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           </Pressable>
         </View>
 
+        {/* Dynamic Past Jobs Section */}
         <View>
           <Text style={styles.sectionTitle}>Past</Text>
           <View style={styles.block}>
-            {PAST.map((job) => (
-              <View key={job.date} style={[styles.row, styles.pastRow]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.pastTitle}>{job.category}</Text>
-                  <Text style={styles.pastSub}>{job.date} · {job.helper}</Text>
+            {pastJobs.length > 0 ? (
+              pastJobs.map((job) => (
+                <View key={job.id} style={[styles.row, styles.pastRow]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pastTitle}>{job.category}</Text>
+                    <Text style={styles.pastSub}>
+                      {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · Helper
+                    </Text>
+                  </View>
+                  <Text style={styles.pastPrice}>${Number(job.amount).toFixed(2)}</Text>
                 </View>
-                <Text style={styles.pastPrice}>{job.price}</Text>
+              ))
+            ) : (
+              <View style={[styles.row, styles.pastRow, { justifyContent: 'center', paddingVertical: 20 }]}>
+                <Text style={{ color: C.textMuted, fontSize: 14 }}>No past jobs yet</Text>
               </View>
-            ))}
+            )}
           </View>
         </View>
       </ScrollView>

@@ -21,14 +21,12 @@ interface TrackMapProps {
 
 export default function TrackMap({ step, helper = 'none', onActionPress }: TrackMapProps) {
   const searching = step === 0;
-  const done = step === 4;
+  const isDone = step === 4; // ✨ Renamed from 'done' to avoid DOM collisions
   
-  // State to track if we have permission to show the blue dot
   const [hasPermission, setHasPermission] = useState(false);
 
   useEffect(() => {
     (async () => {
-      // Request permission when the component mounts
       const { status } = await Location.requestForegroundPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
@@ -46,7 +44,7 @@ export default function TrackMap({ step, helper = 'none', onActionPress }: Track
       <MapView
         style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
-        showsUserLocation={hasPermission} // Only show if we have permission
+        showsUserLocation={hasPermission}
         showsMyLocationButton={false} 
         scrollEnabled={false}
         zoomEnabled={false}
@@ -77,7 +75,7 @@ export default function TrackMap({ step, helper = 'none', onActionPress }: Track
         </View>
       )}
 
-      {done && (
+      {isDone && (
         <View style={styles.doneOverlay}>
           <MaterialCommunityIcons name="check-circle-outline" size={26} color="#22C55E" />
           <Text style={styles.doneTitle}>Helper completed the task</Text>

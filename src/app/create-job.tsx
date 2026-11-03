@@ -55,11 +55,6 @@ const MOCK_ADDRESSES = [
   '800 Main St, Willimantic, CT',
 ];
 
-const PAYMENT_METHODS = [
-  { id: 'apple', name: 'Apple Pay', icon: 'apple' },
-  { id: 'card', name: 'Card', icon: 'credit-card-outline' },
-];
-
 const SERVICE_FEE = 0.15; 
 const MIN_PRICE = 1;
 
@@ -89,7 +84,6 @@ export default function CreateJob() {
   const [details, setDetails] = useState('');
   
   const [price, setPrice] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('apple'); 
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -191,12 +185,19 @@ export default function CreateJob() {
       const data = response ? await response.json() : {};
       const clientSecret = data.clientSecret || 'seti_1_secret_test_mock';
 
+      // Initialize Stripe Payment Sheet with clean native appearance settings
       // Initialize Stripe Payment Sheet
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'OnIt',
         paymentIntentClientSecret: clientSecret,
         appearance: {
-          colors: { primary: C.accent },
+          colors: { 
+            primary: C.text,
+          },
+          shapes: {
+            borderRadius: 16,
+            borderWidth: 1,
+          },
         },
       });
 
@@ -355,6 +356,7 @@ export default function CreateJob() {
               <Text style={styles.sectionSub}>How much are you paying for this job?</Text>
             </View>
 
+            {/* Clean compact price box */}
             <View style={styles.priceBox}>
               <Text style={styles.priceSign}>$</Text>
               <TextInput
@@ -367,32 +369,6 @@ export default function CreateJob() {
                 maxLength={8}
                 accessibilityLabel="Payment amount in dollars"
               />
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Payment Method</Text>
-            </View>
-            <View style={styles.payGrid}>
-              {PAYMENT_METHODS.map((pm) => {
-                const isSelected = paymentMethod === pm.id;
-                return (
-                  <Pressable
-                    key={pm.id}
-                    style={[styles.payTile, isSelected && styles.payTileOn]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPaymentMethod(pm.id);
-                    }}
-                  >
-                    <MaterialCommunityIcons 
-                      name={pm.icon as any} 
-                      size={24} 
-                      color={isSelected ? '#FFFFFF' : C.textMuted} 
-                    />
-                    <Text style={[styles.payText, isSelected && styles.payTextOn]}>{pm.name}</Text>
-                  </Pressable>
-                );
-              })}
             </View>
 
             {amount > 0 && (
@@ -585,6 +561,7 @@ export default function CreateJob() {
                 value={selectedDate}
                 mode="time"
                 display="spinner"
+                minuteInterval={15}
                 onChange={(_event: DateTimePickerEvent, date?: Date) => {
                   if (date) {
                     setSelectedDate(date);
@@ -687,25 +664,6 @@ const styles = StyleSheet.create({
   gridText: { flex: 1, color: C.text, fontSize: 14, fontWeight: '600' },
   gridTextOn: { color: '#FFFFFF' },
 
-  payGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: -8,
-  },
-  payTile: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: C.tile,
-    borderRadius: 14,
-    paddingVertical: 16,
-  },
-  payTileOn: { backgroundColor: C.text },
-  payText: { color: C.text, fontSize: 13, fontWeight: '600' },
-  payTextOn: { color: '#FFFFFF' },
-
   textArea: {
     backgroundColor: C.tile,
     borderRadius: 16,
@@ -720,21 +678,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: C.tile,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 64, 
-    gap: 6,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    gap: 4,
   },
-  priceSign: { color: C.textSecondary, fontSize: 28, fontWeight: '800' },
+  priceSign: { color: C.textSecondary, fontSize: 18, fontWeight: '700' },
   priceInput: {
     flex: 1,
     color: C.text,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
     paddingVertical: 0, 
     includeFontPadding: false, 
-    height: 36, 
+    height: 28, 
   },
 
   bottomBar: {
