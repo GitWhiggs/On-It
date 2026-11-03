@@ -223,13 +223,21 @@ export default function CreateJob() {
             address,
             when_text: when,
             details: details.trim() || null,
-            amount: total,
+            amount: total, // Total customer payment
+            price: amount, // Job price
+            service_fee: fee,
             status: 'active',
           },
         ]);
 
         if (dbError) {
           console.error('Error saving job to database:', dbError.message);
+          Alert.alert(
+            'Payment went through, but your job wasn’t saved',
+            'Please contact support so we can fix it. ' + dbError.message
+          );
+          setLoading(false);
+          return;
         }
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
