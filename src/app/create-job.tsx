@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import Sheet from '@/components/Sheet';
 import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '@/lib/supabase';
+import { getUid } from '@/lib/auth';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -219,17 +220,15 @@ export default function CreateJob() {
         // Save job details to Supabase database upon successful payment
         const { error: dbError } = await supabase.from('jobs').insert([
           {
+            user_id: getUid(), // ✨ Links the job to the current mock or real user
             category,
             address,
             when_text: when,
             details: details.trim() || null,
-            amount: total, // Total customer payment
-            price: amount, // Job price
-            service_fee: fee,
+            amount: total,
             status: 'active',
           },
         ]);
-
         if (dbError) {
           console.error('Error saving job to database:', dbError.message);
           Alert.alert(

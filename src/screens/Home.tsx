@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { useHomeState } from '@/lib/HomeContext';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
@@ -33,7 +34,7 @@ const COLORS = {
   Custom: '#F97316',      
   Address: '#2563EB',     
   Time: '#EC4899',        
-  Placeholder: '#71717A', // ✨ A clean, neutral slate gray for "something"
+  Placeholder: '#71717A',
 };
 
 const CATEGORIES = [
@@ -101,15 +102,21 @@ function AnimatedTextLink({ children, onPress, style }: { children: React.ReactN
 
 export default function Home() {
   const router = useRouter();
-  const [category, setCategory] = useState<string | null>(null);
-  const [isCustom, setIsCustom] = useState(false);
+
+  // Shared across both Home instances (strip + push overlay) so the transition
+  // shows the same selections instead of resetting to defaults.
+  const {
+    category, setCategory,
+    isCustom, setIsCustom,
+    address, setAddress,
+    when, setWhen,
+  } = useHomeState();
+
   const [customText, setCustomText] = useState('');
   
-  const [address, setAddress] = useState('my place');
   const [addressQuery, setAddressQuery] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
 
-  const [when, setWhen] = useState('As soon as possible');
   const [timeStep, setTimeStep] = useState<'day' | 'time'>('day'); 
   const [selectedDay, setSelectedDay] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -225,7 +232,7 @@ export default function Home() {
     ? (isCustom 
         ? COLORS.Custom 
         : COLORS[category as keyof typeof COLORS] || C.accent)
-    : COLORS.Placeholder; // ✨ Falls back to neutral gray when nothing is selected
+    : COLORS.Placeholder;
 
   const handleFindHelper = () => {
     if (!category) return;

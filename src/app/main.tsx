@@ -1,66 +1,127 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import PagerView from 'react-native-pager-view';
+import { Animated, Dimensions, Easing, PanResponder, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import BottomNav from '@/components/BottomNav';
 import Home from '@/screens/Home';
 import Jobs from '@/screens/Jobs';
 import Account from '@/screens/Account';
+import { HomeStateProvider } from '@/lib/HomeContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const PUSH_DURATION = 400;
+const PUSH_EASING = Easing.out(Easing.cubic);
 
 export default function Main() {
-  const pager = useRef<PagerView>(null);
+  return (
+    <HomeStateProvider>
+      <MainInner />
+    </HomeStateProvider>
+  );
+}
+
+function MainInner() {
   const [page, setPage] = useState(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const pageRef = useRef(0);
   const params = useLocalSearchParams<{ tab?: string; t?: string }>();
-  
-  // Fake for now: Marcus sent a message you haven't read. Shows a dot on the Jobs tab.
+
   const [unread, setUnread] = useState(true);
 
-  // Handle incoming tab navigation params (e.g., jumping to jobs after payment)
-  useEffect(() => {
-    if (params.tab === 'jobs') {
-      pager.current?.setPageWithoutAnimation(1);
-      setPage(1);
-    } else if (params.tab === 'home') {
-      pager.current?.setPageWithoutAnimation(0);
-      setPage(0);
-    } else if (params.tab === 'account') {
-      pager.current?.setPageWithoutAnimation(2);
-      setPage(2);
-    }
-  }, [params.tab, params.t]); // Now fully typed and happy!
+  const transitioningRef = useRef(false);
 
-  // Tapping a tab jumps there instantly. Swiping follows your finger.
-  function go(i: number) {
-    pager.current?.setPageWithoutAnimation(i);
+  function jumpTo(i: number) {
+    pageRef.current = i;
     setPage(i);
+    translateX.stopAnimation();
+    translateX.setValue(-i * SCREEN_WIDTH);
   }
+
+  function springTo(i: number) {
+    pageRef.current = i;
+    setPage(i);
+    Animated.spring(translateX, {
+      toValue: -i * SCREEN_WIDTH,
+      stiffness: 500,
+      damping: 45,
+      mass: 1,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  // Return to the Home page by sliding the page strip to the RIGHT.
+  function goHomeWithBack() {
+    if (transitioningRef.current) return;
+    transitioningRef.current = true;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    pageRef.current = 0;
+    setPage(0);
+
+    Animated.timing(translateX, {
+      toValue: 0,
+      duration: PUSH_DURATION,
+      easing: PUSH_EASING,
+      useNativeDriver: true,
+    }).start(() => {
+      transitioningRef.current = false;
+    });
+  }
+
+  useEffect(() => {
+    if (params.tab === 'jobs') jumpTo(1);
+    else if (params.tab === 'home') jumpTo(0);
+    else if (params.tab === 'account') jumpTo(2);
+  }, [params.tab, params.t]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        !transitioningRef.current &&
+        Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderMove: (_, g) => {
+        const base = -pageRef.current * SCREEN_WIDTH;
+        const next = Math.max(-2 * SCREEN_WIDTH, Math.min(0, base + g.dx));
+        translateX.setValue(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        let target = pageRef.current;
+        if (g.dx < -SCREEN_WIDTH * 0.25 || g.vx < -0.5) {
+          target = Math.min(2, pageRef.current + 1);
+        } else if (g.dx > SCREEN_WIDTH * 0.25 || g.vx > 0.5) {
+          target = Math.max(0, pageRef.current - 1);
+        }
+        springTo(target);
+      },
+    })
+  ).current;
 
   return (
     <View style={styles.root}>
-      <PagerView
-        ref={pager}
-        style={styles.pager}
-        initialPage={0}
-        onPageSelected={(e) => setPage(e.nativeEvent.position)}
-      >
-        <View key="home" style={styles.page}>
-          <Home />
-        </View>
-        <View key="jobs" style={styles.page}>
-          <Jobs goHome={() => go(0)} unread={unread} onOpenChat={() => setUnread(false)} />
-        </View>
-        <View key="account" style={styles.page}>
-          <Account />
-        </View>
-      </PagerView>
+      <View style={styles.viewport} {...panResponder.panHandlers}>
+        <Animated.View style={[styles.strip, { transform: [{ translateX }] }]}>
+          <View style={styles.page}><Home /></View>
+          <View style={styles.page}>
+            <Jobs
+              goHome={goHomeWithBack}
+              unread={unread}
+              onOpenChat={() => setUnread(false)}
+            />
+          </View>
+          <View style={styles.page}><Account /></View>
+        </Animated.View>
+      </View>
 
-      <BottomNav index={page} onChange={go} dots={unread ? [1] : []} />
+      <BottomNav index={page} onChange={jumpTo} dots={unread ? [1] : []} />
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FAFAF7' },
-  pager: { flex: 1 },
-  page: { flex: 1 },
+  viewport: { flex: 1, overflow: 'hidden' },
+  strip: { flex: 1, flexDirection: 'row', width: SCREEN_WIDTH * 3 },
+  page: { width: SCREEN_WIDTH, flex: 1 },
 });

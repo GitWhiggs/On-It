@@ -8,6 +8,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TrackMap from '@/components/TrackMap';
 import { supabase } from '@/lib/supabase';
+import { getUid } from '@/lib/auth';
 
 const C = {
   bg: '#FAFAF7',
@@ -97,9 +98,17 @@ export default function Jobs({ goHome, unread }: JobsProps) {
 
   const loadJobs = useCallback(async () => {
     try {
+      const uid = getUid();
+      if (!uid) {
+        setActiveJob(null);
+        setPastJobs([]);
+        return;
+      }
+
       const { data: active, error: activeError } = await supabase
         .from('jobs')
         .select('*')
+        .eq('user_id', uid)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -110,6 +119,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
       const { data: past, error: pastError } = await supabase
         .from('jobs')
         .select('*')
+        .eq('user_id', uid)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(30);
@@ -132,7 +142,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
   // "Yes, all good": the job moves to Past.
   async function handleCompleteJob() {
     if (!activeJob) return;
-    // TODO: release the payment to the helper here (needs a backend call).
     const { error } = await supabase.from('jobs').update({ status: 'completed' }).eq('id', activeJob.id);
     if (error) {
       console.error('Error completing job:', error.message);
@@ -145,7 +154,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
 
   async function handleCancel() {
     if (!activeJob) return;
-    // TODO: refund the Stripe payment here (needs a backend call).
     const { error } = await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', activeJob.id);
     if (error) {
       console.error('Error cancelling job:', error.message);
@@ -174,7 +182,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
 
   function openHelp() {
     const buttons = [
-      // Cancelling only makes sense before the helper is on the way.
       ...(step < 2
         ? [{ text: 'Cancel request', style: 'destructive' as const, onPress: handleCancel }]
         : []),
@@ -184,7 +191,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
     Alert.alert('Need help with this gig?', undefined, buttons);
   }
 
-  // First load
   if (loading) {
     return (
       <SafeAreaView style={[styles.screen, styles.center]}>
@@ -194,7 +200,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
     );
   }
 
-  // Brand new customer: nothing active and nothing in Past
   if (!activeJob && pastJobs.length === 0) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -291,29 +296,23 @@ export default function Jobs({ goHome, unread }: JobsProps) {
                 <Text style={styles.detailValue}>{activeJob.when_text || 'As soon as possible'}</Text>
               </View>
               {activeJob.price != null && activeJob.service_fee != null && (
-              <>
-                <View style={[styles.row, styles.detailRow]}>
-                  <Text style={styles.detailLabel}>Job price</Text>
-                  <Text style={styles.detailValue}>
-                    {money(activeJob.price)}
-                  </Text>
-                </View>
+                <>
+                  <View style={[styles.row, styles.detailRow]}>
+                    <Text style={styles.detailLabel}>Job price</Text>
+                    <Text style={styles.detailValue}>{money(activeJob.price)}</Text>
+                  </View>
 
-                <View style={[styles.row, styles.detailRow]}>
-                  <Text style={styles.detailLabel}>Service fee</Text>
-                  <Text style={styles.detailValue}>
-                    {money(activeJob.service_fee)}
-                  </Text>
-                </View>
-              </>
-            )}
+                  <View style={[styles.row, styles.detailRow]}>
+                    <Text style={styles.detailLabel}>Service fee</Text>
+                    <Text style={styles.detailValue}>{money(activeJob.service_fee)}</Text>
+                  </View>
+                </>
+              )}
 
-            <View style={[styles.row, styles.detailRow]}>
-              <Text style={styles.detailLabel}>Total</Text>
-              <Text style={[styles.detailValue, styles.detailStrong]}>
-                {money(activeJob.amount)}
-              </Text>
-            </View>
+              <View style={[styles.row, styles.detailRow]}>
+                <Text style={styles.detailLabel}>Total</Text>
+                <Text style={[styles.detailValue, styles.detailStrong]}>{money(activeJob.amount)}</Text>
+              </View>
 
               <Pressable style={[styles.row, styles.helpRow]} onPress={openHelp} accessibilityRole="button">
                 <Text style={styles.helpText}>Need help with this gig?</Text>

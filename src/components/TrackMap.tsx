@@ -20,7 +20,6 @@ interface TrackMapProps {
 }
 
 export default function TrackMap({ step, helper = 'none', onActionPress }: TrackMapProps) {
-  const searching = step === 0;
   const isDone = step === 4; // ✨ Renamed from 'done' to avoid DOM collisions
   
   const [hasPermission, setHasPermission] = useState(false);
@@ -67,13 +66,7 @@ export default function TrackMap({ step, helper = 'none', onActionPress }: Track
         )}
       </MapView>
 
-      {searching && (
-        <View pointerEvents="none" style={styles.captionWrap}>
-          <View style={styles.caption}>
-            <Text style={styles.captionText}>Dropping your pin for nearby helpers…</Text>
-          </View>
-        </View>
-      )}
+  
 
       {isDone && (
         <View style={styles.doneOverlay}>

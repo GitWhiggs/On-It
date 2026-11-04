@@ -60,7 +60,7 @@ export async function signInWithPhoneNumber(auth: any, phone: string) {
   }
   return {
     confirm: async (code: string) => {
-      setMockUser({ phoneNumber: phone });
+      setMockUser({ uid: `mock-${phone}`, phoneNumber: phone });
       return true;
     },
   };
@@ -76,4 +76,13 @@ export async function signOut(auth: any) {
     }
   }
   setMockUser(null);
+}
+
+export function getUid(): string | null {
+  if (useMock) return (mockUser as { uid?: string } | null)?.uid ?? null;
+  try {
+    return getFirebaseAuth().currentUser?.uid ?? null;
+  } catch {
+    return null;
+  }
 }
