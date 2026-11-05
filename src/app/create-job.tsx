@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import Sheet from '@/components/Sheet';
 import { useStripe } from '@stripe/stripe-react-native';
 import { supabase } from '@/lib/supabase';
@@ -32,32 +33,25 @@ const C = {
 };
 
 const CATEGORIES = [
-  { name: 'Moving', example: 'Couches, dorms, truck unloads' },
-  { name: 'Yard work', example: 'Raking, mowing, hauling branches' },
-  { name: 'Events', example: 'Setup, cleanup, running errands' },
-  { name: 'Errands', example: 'Groceries, pickups, returns' },
+  { name: 'Moving', example: 'Furniture, boxes, truck loading' },
+  { name: 'Yard work', example: 'Raking, mowing, brush cleanup' },
+  { name: 'Events', example: 'Setup, teardown, party help' },
+  { name: 'Errands', example: 'Curbside pickups, returns, donation runs' },
   { name: 'Seasonal', example: 'Snow shoveling, holiday lights' },
 ];
 
 const OPTIONS: Record<string, string[]> = {
-  Moving: ['Stairs', 'Heavy items', 'Elevator', 'Truck is ready', 'Parking nearby', 'Fragile items'],
-  'Yard work': ['Tools provided', 'Bags provided', 'Large yard', 'Slope or hills', 'Dog on property', 'Gate code needed'],
-  Events: ['Setup', 'Cleanup', 'Heavy lifting', 'Indoors', 'Outdoors', 'Parking nearby'],
-  Errands: ['Groceries', 'Pickup', 'Return an item', 'Heavy bags', 'Wait in line', 'Need a receipt'],
+  Moving: ['Stairs', 'Heavy items', 'Elevator', 'Truck is ready', 'Fragile items', 'Needs assembly'],
+  'Yard work': ['Tools provided', 'Bags provided', 'Large yard', 'Hilly yard', 'Dog on site', 'Side gate access'],
+  Events: ['Setup', 'Cleanup', 'Heavy lifting', 'Indoors', 'Outdoors', 'Supplies provided'],
+  Errands: ['Curbside pickup', 'Marketplace pickup', 'Package return', 'Donation drop-off', 'Bulky item', 'Car needed'],
   Seasonal: ['Snow shoveling', 'Holiday lights', 'Icy walkway', 'Salt provided', 'Large driveway', 'Ladder provided'],
 };
-const DEFAULT_OPTIONS = ['Stairs', 'Heavy items', 'Parking nearby', 'Pet at home', 'Gate code needed', 'Tools provided'];
-
-const MOCK_ADDRESSES = [
-  '123 Main St, Storrs, CT',
-  '45 Eagleville Rd, Storrs, CT',
-  '1 University Pl, Storrs, CT',
-  '406 Farmington Ave, Hartford, CT',
-  '800 Main St, Willimantic, CT',
-];
+const DEFAULT_OPTIONS = ['Stairs', 'Heavy items', 'Fragile items', 'Pet at home', 'Gate code', 'Tools provided'];
 
 const SERVICE_FEE = 0.15; 
 const MIN_PRICE = 1;
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '';
 
 const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) ?? '';
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -139,11 +133,23 @@ export default function CreateJob() {
     setSheet('when');
   };
 
-  const handleAddressType = (text: string) => {
+  // Instant Mapbox search handler
+  const handleAddressType = async (text: string) => {
     setAddressQuery(text);
-    if (text.length > 1) {
-      const filtered = MOCK_ADDRESSES.filter((a) => a.toLowerCase().includes(text.toLowerCase()));
-      setSuggestions(filtered.length === 0 ? [text] : filtered);
+    if (text.length > 0) {
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${MAPBOX_TOKEN}&country=us&types=address&limit=5`
+        );
+        const data = await response.json();
+        
+        if (data.features) {
+          const formattedSuggestions = data.features.map((f: any) => f.place_name);
+          setSuggestions(formattedSuggestions);
+        }
+      } catch (err) {
+        console.error('Error fetching Mapbox autocomplete:', err);
+      }
     } else {
       setSuggestions([]);
     }
@@ -174,32 +180,19 @@ export default function CreateJob() {
     try {
       const amountInCents = Math.round(total * 100);
 
-      // Fetch client secret from your deployed Supabase Edge Function with local fallback support
       const response = await fetch('https://acpwxtnxtxxskuqnrffc.supabase.co/functions/v1/create-payment-intent', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: amountInCents }),
       }).catch(() => null);
 
       const data = response ? await response.json() : {};
       const clientSecret = data.clientSecret || 'seti_1_secret_test_mock';
 
-      // Initialize Stripe Payment Sheet with clean native appearance settings
-      // Initialize Stripe Payment Sheet
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'OnIt',
         paymentIntentClientSecret: clientSecret,
-        appearance: {
-          colors: { 
-            primary: C.text,
-          },
-          shapes: {
-            borderRadius: 16,
-            borderWidth: 1,
-          },
-        },
+        appearance: { colors: { primary: C.text }, shapes: { borderRadius: 16, borderWidth: 1 } },
       });
 
       if (initError) {
@@ -208,7 +201,6 @@ export default function CreateJob() {
         return;
       }
 
-      // Present Stripe Payment Sheet
       const { error: paymentError } = await presentPaymentSheet();
 
       if (paymentError) {
@@ -217,18 +209,20 @@ export default function CreateJob() {
         }
         setLoading(false);
       } else {
-        // Save job details to Supabase database upon successful payment
         const { error: dbError } = await supabase.from('jobs').insert([
           {
-            user_id: getUid(), // ✨ Links the job to the current mock or real user
+            user_id: getUid(),
             category,
             address,
             when_text: when,
             details: details.trim() || null,
-            amount: total,
+            amount: total, 
+            price: amount, 
+            service_fee: fee,
             status: 'active',
           },
         ]);
+
         if (dbError) {
           console.error('Error saving job to database:', dbError.message);
           Alert.alert(
@@ -275,45 +269,20 @@ export default function CreateJob() {
       <StatusBar style="dark" />
 
       <View style={styles.header}>
-        <Pressable
-          style={styles.backBtn}
-          onPress={() => {
-            Haptics.selectionAsync();
-            router.back();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-        >
+        <Pressable style={styles.backBtn} onPress={() => { Haptics.selectionAsync(); router.back(); }}>
           <MaterialCommunityIcons name="arrow-left" size={18} color={C.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Job details</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        enabled={sheet === null}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} enabled={sheet === null} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled">
           <Pressable onPress={Keyboard.dismiss} accessible={false} style={styles.content}>
             
             <View style={styles.block}>
               {rows.map((r) => (
-                <Pressable
-                  key={r.label}
-                  style={styles.row}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    r.onPress();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${r.label}: ${r.value}. Tap to change.`}
-                >
+                <Pressable key={r.label} style={styles.row} onPress={() => { Haptics.selectionAsync(); r.onPress(); }}>
                   <Text style={styles.rowLabel}>{r.label}</Text>
                   <View style={styles.rowRight}>
                     <Text style={[styles.rowValue, r.value === 'None' && { color: C.textMuted }]} numberOfLines={1}>
@@ -326,11 +295,7 @@ export default function CreateJob() {
             </View>
 
             {!showDetails ? (
-              <Pressable 
-                style={styles.addDetailsBtn} 
-                onPress={toggleDetails}
-                accessibilityRole="button"
-              >
+              <Pressable style={styles.addDetailsBtn} onPress={toggleDetails}>
                 <MaterialCommunityIcons name="plus-circle" size={20} color={C.accent} />
                 <Text style={styles.addDetailsText}>Add specific details</Text>
               </Pressable>
@@ -342,14 +307,12 @@ export default function CreateJob() {
                     <Text style={styles.removeText}>Remove</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.sectionSub}>
-                  Mention specific items, gate codes, or any special instructions.
-                </Text>
+                <Text style={styles.sectionSub}>Mention specific items, gate codes, or any special instructions.</Text>
                 <TextInput
                   ref={detailsInputRef}
                   style={styles.textArea}
                   multiline
-                  placeholder="e.g. Need help moving a couch from the 2nd floor down to a truck. 2 people needed..."
+                  placeholder="e.g. Couch on the 2nd floor going to a truck. Parking is in the back..."
                   placeholderTextColor={C.textMuted}
                   value={details}
                   onChangeText={setDetails}
@@ -363,7 +326,6 @@ export default function CreateJob() {
               <Text style={styles.sectionSub}>How much are you paying for this job?</Text>
             </View>
 
-            {/* Clean compact price box */}
             <View style={styles.priceBox}>
               <Text style={styles.priceSign}>$</Text>
               <TextInput
@@ -374,7 +336,6 @@ export default function CreateJob() {
                 placeholderTextColor={C.textMuted}
                 keyboardType="decimal-pad"
                 maxLength={8}
-                accessibilityLabel="Payment amount in dollars"
               />
             </View>
 
@@ -384,12 +345,10 @@ export default function CreateJob() {
                   <Text style={styles.rowLabel}>Job price</Text>
                   <Text style={styles.rowValue}>{money(amount)}</Text>
                 </View>
-                
                 <View style={styles.row}>
                   <Text style={styles.rowLabel}>Service fee ({Math.round(SERVICE_FEE * 100)}%)</Text>
                   <Text style={styles.rowValue}>{money(fee)}</Text>
                 </View>
-                
                 <View style={styles.row}>
                   <Text style={styles.totalLabel}>Total</Text>
                   <Text style={styles.totalValue}>{money(total)}</Text>
@@ -400,19 +359,8 @@ export default function CreateJob() {
         </ScrollView>
 
         <View style={[styles.bottomBar, { paddingBottom: keyboardOpen ? 12 : insets.bottom + 12 }]}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.cta,
-              !canPost && styles.ctaOff,
-              pressed && canPost && { transform: [{ scale: 0.97 }] },
-            ]}
-            disabled={!canPost}
-            onPress={handlePost}
-            accessibilityRole="button"
-          >
-            <Text style={styles.ctaText}>
-              {loading ? 'Processing...' : canPost ? `Post job • ${money(total)}` : 'Post job'}
-            </Text>
+          <Pressable style={({ pressed }) => [styles.cta, !canPost && styles.ctaOff, pressed && canPost && { transform: [{ scale: 0.97 }] }]} disabled={!canPost} onPress={handlePost}>
+            <Text style={styles.ctaText}>{loading ? 'Processing...' : canPost ? `Post job • ${money(total)}` : 'Post job'}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -436,26 +384,14 @@ export default function CreateJob() {
         {sheet === 'goodToKnow' && (
           <>
             <Text style={styles.sheetTitle}>Good to know</Text>
-            <Text style={[styles.sectionSub, { marginBottom: 16 }]}>
-              Tap anything that applies to your {category ? category.toLowerCase() : 'job'}.
-            </Text>
+            <Text style={[styles.sectionSub, { marginBottom: 16 }]}>Tap anything that applies to your {category ? category.toLowerCase() : 'job'}.</Text>
             <View style={styles.grid}>
               {options.map((o) => {
                 const on = selected.includes(o);
                 return (
-                  <Pressable
-                    key={o}
-                    style={[styles.gridTile, on && styles.gridTileOn]}
-                    onPress={() => toggleOption(o)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                  >
-                    <MaterialCommunityIcons
-                      name={on ? 'check-circle' : 'circle-outline'}
-                      size={18}
-                      color={on ? '#FFFFFF' : C.textMuted}
-                    />
-                    <Text style={[styles.gridText, on && styles.gridTextOn]} numberOfLines={1}>{o}</Text>
+                  <Pressable key={o} style={[styles.gridTile, on && styles.gridTileOn]} onPress={() => toggleOption(o)}>
+                    <MaterialCommunityIcons name={on ? 'check-circle' : 'circle-outline'} size={18} color={on ? '#FFFFFF' : C.textMuted} />
+                    <Text style={[styles.gridText, on && styles.gridTextOn]} numberOfLines={2}>{o}</Text>
                   </Pressable>
                 );
               })}
@@ -479,11 +415,7 @@ export default function CreateJob() {
               returnKeyType="done"
               onSubmitEditing={saveCustom}
             />
-            <Pressable
-              style={[styles.cta, !customText.trim() && styles.ctaOff]}
-              disabled={!customText.trim()}
-              onPress={saveCustom}
-            >
+            <Pressable style={[styles.cta, !customText.trim() && styles.ctaOff]} disabled={!customText.trim()} onPress={saveCustom}>
               <Text style={styles.ctaText}>Done</Text>
             </Pressable>
           </>
@@ -492,14 +424,45 @@ export default function CreateJob() {
         {sheet === 'address' && (
           <>
             <Text style={styles.sheetTitle}>Where should they go?</Text>
+            
+            <Pressable
+              style={styles.gpsBtn}
+              onPress={async () => {
+                Haptics.selectionAsync();
+                try {
+                  let { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status !== 'granted') {
+                    Alert.alert('Permission denied', 'Allow location access to auto-fill your address.');
+                    return;
+                  }
+
+                  let location = await Location.getCurrentPositionAsync({});
+                  let addressResponse = await Location.reverseGeocodeAsync({
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                  });
+
+                  if (addressResponse.length > 0) {
+                    const addr = addressResponse[0];
+                    const formatted = [addr.streetNumber, addr.street, addr.city, addr.region].filter(Boolean).join(' ');
+                    setAddress(sanitizeAddress(formatted));
+                    closeSheet();
+                  }
+                } catch (err) {
+                  console.error(err);
+                  Alert.alert('Error', 'Could not fetch your current location.');
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="crosshairs-gps" size={18} color={C.accent} />
+              <Text style={styles.gpsBtnText}>Use current location</Text>
+            </Pressable>
+
             <TextInput
-              style={[
-                styles.sheetInput,
-                suggestions.length > 0 && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 },
-              ]}
+              style={[styles.sheetInput, suggestions.length > 0 && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 }]}
               value={addressQuery}
               onChangeText={handleAddressType}
-              placeholder="Search address..."
+              placeholder="Search street address..."
               placeholderTextColor={C.textMuted}
               returnKeyType="done"
               onSubmitEditing={() => pick(() => setAddress(sanitizeAddress(addressQuery)))}
@@ -508,11 +471,7 @@ export default function CreateJob() {
             {suggestions.length > 0 && (
               <View style={styles.suggestionsBox}>
                 {suggestions.map((s, i) => (
-                  <Pressable
-                    key={s}
-                    style={[styles.suggestionItem, i === suggestions.length - 1 && { borderBottomWidth: 0 }]}
-                    onPress={() => pick(() => setAddress(sanitizeAddress(s)))}
-                  >
+                  <Pressable key={s} style={[styles.suggestionItem, i === suggestions.length - 1 && { borderBottomWidth: 0 }]} onPress={() => pick(() => setAddress(sanitizeAddress(s)))}>
                     <MaterialCommunityIcons name="map-marker-outline" size={20} color={C.textSecondary} />
                     <Text style={styles.suggestionText} numberOfLines={1}>{s}</Text>
                   </Pressable>
@@ -520,10 +479,7 @@ export default function CreateJob() {
               </View>
             )}
 
-            <Pressable
-              style={[styles.cta, { marginTop: 16 }]}
-              onPress={() => pick(() => setAddress(sanitizeAddress(addressQuery)))}
-            >
+            <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => pick(() => setAddress(sanitizeAddress(addressQuery)))}>
               <Text style={styles.ctaText}>Done</Text>
             </Pressable>
           </>
@@ -535,22 +491,10 @@ export default function CreateJob() {
             <Pressable style={styles.option} onPress={() => pick(() => setWhen('As soon as possible'))}>
               <Text style={styles.optionName}>As soon as possible</Text>
             </Pressable>
-            <Pressable
-              style={styles.option}
-              onPress={() => {
-                setSelectedDay('Today');
-                setTimeStep('time');
-              }}
-            >
+            <Pressable style={styles.option} onPress={() => { setSelectedDay('Today'); setTimeStep('time'); }}>
               <Text style={styles.optionName}>Today</Text>
             </Pressable>
-            <Pressable
-              style={[styles.option, styles.optionLast]}
-              onPress={() => {
-                setSelectedDay('Tomorrow');
-                setTimeStep('time');
-              }}
-            >
+            <Pressable style={[styles.option, styles.optionLast]} onPress={() => { setSelectedDay('Tomorrow'); setTimeStep('time'); }}>
               <Text style={styles.optionName}>Tomorrow</Text>
             </Pressable>
           </>
@@ -570,10 +514,7 @@ export default function CreateJob() {
                 display="spinner"
                 minuteInterval={15}
                 onChange={(_event: DateTimePickerEvent, date?: Date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                    Haptics.selectionAsync();
-                  }
+                  if (date) { setSelectedDate(date); Haptics.selectionAsync(); }
                 }}
                 style={styles.picker}
                 textColor={C.text}
@@ -592,171 +533,49 @@ export default function CreateJob() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: C.surface,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: C.tile,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: C.surface },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.tile, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: C.text, fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
   headerSpacer: { width: 36 },
-
   content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24, gap: 24 },
-
   block: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.line,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   rowLabel: { color: C.textSecondary, fontSize: 15 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, marginLeft: 16 },
   rowValue: { color: C.text, fontSize: 15, fontWeight: '500', flexShrink: 1, textAlign: 'right' },
   totalLabel: { color: C.text, fontSize: 15, fontWeight: '700' },
   totalValue: { color: C.text, fontSize: 17, fontWeight: '800' },
-
   section: { gap: 6 },
   sectionTitle: { color: C.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
   sectionSub: { color: C.textSecondary, fontSize: 14, lineHeight: 20 },
-
-  addDetailsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    marginTop: -8,
-  },
-  addDetailsText: {
-    color: C.accent,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  removeText: {
-    color: C.textMuted,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
+  addDetailsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: -8 },
+  addDetailsText: { color: C.accent, fontSize: 15, fontWeight: '600' },
+  detailsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  removeText: { color: C.textMuted, fontSize: 14, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  gridTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: C.tile,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-  },
+  gridTile: { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.tile, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12 },
   gridTileOn: { backgroundColor: C.text },
   gridText: { flex: 1, color: C.text, fontSize: 14, fontWeight: '600' },
   gridTextOn: { color: '#FFFFFF' },
-
-  textArea: {
-    backgroundColor: C.tile,
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    lineHeight: 22,
-    color: C.text,
-    minHeight: 100,
-  },
-
-  priceBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.tile,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 48,
-    gap: 4,
-  },
+  textArea: { backgroundColor: C.tile, borderRadius: 16, padding: 16, fontSize: 16, lineHeight: 22, color: C.text, minHeight: 100 },
+  priceBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.tile, borderRadius: 14, paddingHorizontal: 14, height: 48, gap: 4 },
   priceSign: { color: C.textSecondary, fontSize: 18, fontWeight: '700' },
-  priceInput: {
-    flex: 1,
-    color: C.text,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    paddingVertical: 0, 
-    includeFontPadding: false, 
-    height: 28, 
-  },
-
-  bottomBar: {
-    backgroundColor: C.surface,
-    paddingHorizontal: 24,
-    paddingTop: 12,
-  },
-  cta: {
-    backgroundColor: C.accent,
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
+  priceInput: { flex: 1, color: C.text, fontSize: 18, fontWeight: '700', letterSpacing: -0.3, paddingVertical: 0, includeFontPadding: false, height: 28 },
+  bottomBar: { backgroundColor: C.surface, paddingHorizontal: 24, paddingTop: 12 },
+  cta: { backgroundColor: C.accent, borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
   ctaOff: { backgroundColor: 'rgba(59, 131, 246, 0.3)' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
   sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 16 },
   option: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   optionLast: { borderBottomWidth: 0 },
   optionName: { color: C.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.2 },
   optionExample: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
-  sheetInput: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 18,
-    color: C.text,
-    marginBottom: 16,
-  },
-  pickerContainer: {
-    backgroundColor: C.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-    height: 180,
-    justifyContent: 'center',
-  },
+  sheetInput: { backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16, padding: 16, fontSize: 18, color: C.text, marginBottom: 16 },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12 },
+  gpsBtnText: { color: C.accent, fontSize: 16, fontWeight: '600' },
+  pickerContainer: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden', height: 180, justifyContent: 'center' },
   picker: { width: '100%', height: '100%' },
-  suggestionsBox: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
+  suggestionsBox: { backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, overflow: 'hidden' },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   suggestionText: { color: C.text, fontSize: 16, fontWeight: '500', flex: 1 },
 });

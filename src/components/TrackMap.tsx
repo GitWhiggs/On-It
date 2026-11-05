@@ -17,10 +17,11 @@ interface TrackMapProps {
   step: number;
   helper?: HelperState;
   onActionPress?: () => void;
+  readOnly?: boolean; // ✨ Added readOnly prop for past receipts
 }
 
-export default function TrackMap({ step, helper = 'none', onActionPress }: TrackMapProps) {
-  const isDone = step === 4; // ✨ Renamed from 'done' to avoid DOM collisions
+export default function TrackMap({ step, helper = 'none', onActionPress, readOnly = false }: TrackMapProps) {
+  const isDone = step === 4; 
   
   const [hasPermission, setHasPermission] = useState(false);
 
@@ -66,9 +67,16 @@ export default function TrackMap({ step, helper = 'none', onActionPress }: Track
         )}
       </MapView>
 
-  
+      {/* If readOnly is true, show a clean static badge instead of action buttons */}
+      {isDone && readOnly && (
+        <View style={styles.doneOverlay}>
+          <MaterialCommunityIcons name="check-circle" size={28} color="#22C55E" />
+          <Text style={styles.doneTitle}>Task completed successfully</Text>
+        </View>
+      )}
 
-      {isDone && (
+      {/* Interactive completion view for active jobs */}
+      {isDone && !readOnly && (
         <View style={styles.doneOverlay}>
           <MaterialCommunityIcons name="check-circle-outline" size={26} color="#22C55E" />
           <Text style={styles.doneTitle}>Helper completed the task</Text>
@@ -113,14 +121,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  captionWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
-  caption: {
-    backgroundColor: 'rgba(17, 17, 17, 0.82)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  captionText: { color: '#F5F5F2', fontSize: 12, fontWeight: '600', letterSpacing: -0.2 },
   doneOverlay: {
     position: 'absolute',
     top: 0, bottom: 0, left: 0, right: 0,

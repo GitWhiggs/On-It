@@ -1,29 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Animated, Dimensions, Keyboard, Easing
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Animated, Dimensions, Keyboard, Easing, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import { useHomeState } from '@/lib/HomeContext';
+import { useAppColors, AppColors } from '@/theme';
 
-type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const C = {
-  bg: '#FAFAF7',
-  surface: '#FFFFFF',
-  border: '#DAD8D1',
-  text: '#111111',
-  textSecondary: '#5E5E5A',
-  textMuted: '#9A9A94',
-  accent: '#3B83F6', 
-};
 
 const COLORS = {
   Moving: '#EF4444',      
@@ -34,24 +24,22 @@ const COLORS = {
   Custom: '#F97316',      
   Address: '#2563EB',     
   Time: '#EC4899',        
-  Placeholder: '#71717A',
+  Placeholder: '#71717A', 
 };
 
 const CATEGORIES = [
-  { name: 'Moving', example: 'Couches, dorms, truck unloads' },
-  { name: 'Yard work', example: 'Raking, mowing, hauling branches' },
-  { name: 'Events', example: 'Setup, cleanup, running errands' },
-  { name: 'Errands', example: 'Groceries, pickups, returns' },
+  { name: 'Moving', example: 'Furniture, boxes, truck loading' },
+  { name: 'Yard work', example: 'Raking, mowing, brush cleanup' },
+  { name: 'Events', example: 'Setup, teardown, party help' },
+  { name: 'Errands', example: 'Curbside pickups, returns, donation runs' },
   { name: 'Seasonal', example: 'Snow shoveling, holiday lights' },
 ];
 
-const MOCK_ADDRESSES = [
-  '123 Main St, Storrs, CT',
-  '45 Eagleville Rd, Storrs, CT',
-  '1 University Pl, Storrs, CT',
-  '406 Farmington Ave, Hartford, CT',
-  '800 Main St, Willimantic, CT',
-];
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '';
+const sanitizeAddress = (text: string) => text.replace(/\./g, '').trim() || 'my place';
+
+// Global memory cache for the last used address
+let lastUsedAddress = 'my place';
 
 function AnimatedTextLink({ children, onPress, style }: { children: React.ReactNode; onPress: () => void; style?: any }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -63,36 +51,15 @@ function AnimatedTextLink({ children, onPress, style }: { children: React.ReactN
   useEffect(() => {
     if (prevText.current !== textContent) {
       opacity.setValue(0);
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
       prevText.current = textContent;
     }
   }, [textContent]);
-
-  const handlePressIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 60, bounciness: 0 }),
-      Animated.timing(opacity, { toValue: 0.5, duration: 100, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }),
-      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
-  };
 
   return (
     <Animated.Text
       suppressHighlighting={true}
       onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
       style={[style, { transform: [{ scale }], opacity }]}
     >
       {children}
@@ -101,22 +68,18 @@ function AnimatedTextLink({ children, onPress, style }: { children: React.ReactN
 }
 
 export default function Home() {
+  const C = useAppColors();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const router = useRouter();
-
-  // Shared across both Home instances (strip + push overlay) so the transition
-  // shows the same selections instead of resetting to defaults.
-  const {
-    category, setCategory,
-    isCustom, setIsCustom,
-    address, setAddress,
-    when, setWhen,
-  } = useHomeState();
-
+  const [category, setCategory] = useState<string | null>(null);
+  const [isCustom, setIsCustom] = useState(false);
   const [customText, setCustomText] = useState('');
   
+  const [address, setAddress] = useState(lastUsedAddress);
   const [addressQuery, setAddressQuery] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
 
+  const [when, setWhen] = useState('As soon as possible');
   const [timeStep, setTimeStep] = useState<'day' | 'time'>('day'); 
   const [selectedDay, setSelectedDay] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -133,19 +96,11 @@ export default function Home() {
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      Animated.timing(keyboardHeight, {
-        toValue: e.endCoordinates.height,
-        duration: e.duration || 250,
-        useNativeDriver: false, 
-      }).start();
+      Animated.timing(keyboardHeight, { toValue: e.endCoordinates.height, duration: e.duration || 250, useNativeDriver: false }).start();
     });
 
     const hideSub = Keyboard.addListener(hideEvent, (e) => {
-      Animated.timing(keyboardHeight, {
-        toValue: 0,
-        duration: e.duration || 250,
-        useNativeDriver: false,
-      }).start();
+      Animated.timing(keyboardHeight, { toValue: 0, duration: e.duration || 250, useNativeDriver: false }).start();
     });
 
     return () => {
@@ -156,10 +111,8 @@ export default function Home() {
 
   const openSheet = (sheetType: Sheet) => {
     keyboardHeight.setValue(0); 
-
     setSheet(sheetType);
     setModalVisible(true);
-    
     slideAnim.setValue(SCREEN_HEIGHT);
     fadeAnim.setValue(0);
 
@@ -175,12 +128,7 @@ export default function Home() {
 
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(slideAnim, { 
-        toValue: SCREEN_HEIGHT, 
-        duration: 250, 
-        easing: Easing.out(Easing.cubic), 
-        useNativeDriver: true 
-      })
+      Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, easing: Easing.out(Easing.cubic), useNativeDriver: true })
     ]).start(() => {
       setModalVisible(false);
       setSheet(null);
@@ -192,21 +140,29 @@ export default function Home() {
     closeSheet(); 
   };
 
+  // Keep only the street address (strips out town, state, zip for the sentence view)
   const formatAddress = (text: string) => {
     if (!text || text === 'my place') return 'my place';
-    const shortStreet = text.split(',')[0].trim();
-    if (shortStreet.length > 25) {
-      return shortStreet.substring(0, 22) + '...';
-    }
-    return shortStreet;
+    return text.split(',')[0].trim();
   };
 
-  const handleAddressType = (text: string) => {
+  // Instant Mapbox address search query
+  const handleAddressType = async (text: string) => {
     setAddressQuery(text);
-    setAddress(text); 
-    if (text.length > 1) {
-      const filtered = MOCK_ADDRESSES.filter(a => a.toLowerCase().includes(text.toLowerCase()));
-      setAddressSuggestions(filtered.length === 0 ? [text] : filtered);
+    if (text.length > 0) {
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${MAPBOX_TOKEN}&country=us&types=address&limit=5`
+        );
+        const data = await response.json();
+        
+        if (data.features) {
+          const formattedSuggestions = data.features.map((f: any) => f.place_name);
+          setAddressSuggestions(formattedSuggestions);
+        }
+      } catch (err) {
+        console.error('Error fetching Mapbox autocomplete:', err);
+      }
     } else {
       setAddressSuggestions([]);
     }
@@ -223,43 +179,34 @@ export default function Home() {
     let hours = selectedDate.getHours();
     const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; 
+    hours = hours % 12 || 12;
     handleSelect(() => setWhen(`${selectedDay} at ${hours}:${minutes} ${ampm}`));
   };
 
   const activeCategoryColor = category 
-    ? (isCustom 
-        ? COLORS.Custom 
-        : COLORS[category as keyof typeof COLORS] || C.accent)
+    ? (isCustom ? COLORS.Custom : COLORS[category as keyof typeof COLORS] || C.accent)
     : COLORS.Placeholder;
 
   const handleFindHelper = () => {
     if (!category) return;
+    lastUsedAddress = address;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: '/create-job',
-      params: {
-        category: category,
-        address: address,
-        when: when,
-      }
+      params: { category, address, when }
     });
   };
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
 
       <View style={styles.body}>
         <Text style={styles.logo}>On-It</Text>
 
         <Text style={styles.sentence}>
           I need help with{' '}
-          <AnimatedTextLink 
-            style={[styles.blank, { color: activeCategoryColor }, !category && styles.blankEmpty]} 
-            onPress={() => openSheet('category')}
-          >
+          <AnimatedTextLink style={[styles.blank, { color: activeCategoryColor }, !category && styles.blankEmpty]} onPress={() => openSheet('category')}>
             {category ? category.toLowerCase() : 'something'}
           </AnimatedTextLink>{' '}
           at{' '}
@@ -271,11 +218,7 @@ export default function Home() {
           </AnimatedTextLink>
         </Text>
 
-        <Pressable
-          style={[styles.cta, !category && styles.ctaOff]}
-          disabled={!category}
-          onPress={handleFindHelper}
-        >
+        <Pressable style={[styles.cta, !category && styles.ctaOff]} disabled={!category} onPress={handleFindHelper}>
           <Text style={styles.ctaText}>Find a helper</Text>
         </Pressable>
       </View>
@@ -284,15 +227,11 @@ export default function Home() {
 
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => closeSheet()}>
         <View style={styles.modalRoot}>
-          
           <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => closeSheet()} />
           </Animated.View>
 
-          <Animated.View 
-            style={[styles.modalWrap, { paddingBottom: keyboardHeight }]} 
-            pointerEvents="box-none"
-          >
+          <Animated.View style={[styles.modalWrap, { paddingBottom: keyboardHeight }]} pointerEvents="box-none">
             <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
               <ScrollView bounces={false} keyboardShouldPersistTaps="handled">
                 
@@ -300,11 +239,7 @@ export default function Home() {
                   <>
                     <Text style={styles.sheetTitle}>What do you need help with?</Text>
                     {CATEGORIES.map((c) => (
-                      <Pressable
-                        key={c.name}
-                        style={styles.option}
-                        onPress={() => handleSelect(() => { setCategory(c.name); setIsCustom(false); })}
-                      >
+                      <Pressable key={c.name} style={styles.option} onPress={() => handleSelect(() => { setCategory(c.name); setIsCustom(false); })}>
                         <Text style={styles.optionName}>{c.name}</Text>
                         <Text style={styles.optionExample}>{c.example}</Text>
                       </Pressable>
@@ -331,11 +266,7 @@ export default function Home() {
                         handleSelect(() => { setCategory(customText.trim()); setIsCustom(true); });
                       }}
                     />
-                    <Pressable
-                      style={[styles.cta, !customText.trim() && styles.ctaOff]}
-                      disabled={!customText.trim()}
-                      onPress={() => handleSelect(() => { setCategory(customText.trim()); setIsCustom(true); })}
-                    >
+                    <Pressable style={[styles.cta, !customText.trim() && styles.ctaOff]} disabled={!customText.trim()} onPress={() => handleSelect(() => { setCategory(customText.trim()); setIsCustom(true); })}>
                       <Text style={styles.ctaText}>Done</Text>
                     </Pressable>
                   </>
@@ -344,22 +275,13 @@ export default function Home() {
                 {sheet === 'when' && timeStep === 'day' && (
                   <>
                     <Text style={styles.sheetTitle}>When do you need help?</Text>
-                    <Pressable
-                      style={styles.option}
-                      onPress={() => handleSelect(() => setWhen('As soon as possible'))}
-                    >
+                    <Pressable style={styles.option} onPress={() => handleSelect(() => setWhen('As soon as possible'))}>
                       <Text style={styles.optionName}>As soon as possible</Text>
                     </Pressable>
-                    <Pressable
-                      style={styles.option}
-                      onPress={() => { setSelectedDay('Today'); setTimeStep('time'); }}
-                    >
+                    <Pressable style={styles.option} onPress={() => { setSelectedDay('Today'); setTimeStep('time'); }}>
                       <Text style={styles.optionName}>Today</Text>
                     </Pressable>
-                    <Pressable
-                      style={[styles.option, styles.optionLast]}
-                      onPress={() => { setSelectedDay('Tomorrow'); setTimeStep('time'); }}
-                    >
+                    <Pressable style={[styles.option, styles.optionLast]} onPress={() => { setSelectedDay('Tomorrow'); setTimeStep('time'); }}>
                       <Text style={styles.optionName}>Tomorrow</Text>
                     </Pressable>
                   </>
@@ -378,11 +300,8 @@ export default function Home() {
                         mode="time"
                         display="spinner"
                         minuteInterval={15}
-                        onChange={(event: DateTimePickerEvent, date?: Date) => {
-                          if (date) {
-                            setSelectedDate(date);
-                            Haptics.selectionAsync();
-                          }
+                        onChange={(_event: DateTimePickerEvent, date?: Date) => {
+                          if (date) { setSelectedDate(date); Haptics.selectionAsync(); }
                         }}
                         style={styles.picker}
                         textColor={C.text}
@@ -398,14 +317,48 @@ export default function Home() {
                 {sheet === 'address' && (
                   <>
                     <Text style={styles.sheetTitle}>Where should they go?</Text>
+                    
+                    <Pressable
+                      style={styles.gpsBtn}
+                      onPress={async () => {
+                        Haptics.selectionAsync();
+                        try {
+                          let { status } = await Location.requestForegroundPermissionsAsync();
+                          if (status !== 'granted') {
+                            Alert.alert('Permission denied', 'Allow location access to auto-fill your address.');
+                            return;
+                          }
+
+                          let location = await Location.getCurrentPositionAsync({});
+                          let addressResponse = await Location.reverseGeocodeAsync({
+                            latitude: location.coords.latitude,
+                            longitude: location.coords.longitude,
+                          });
+
+                          if (addressResponse.length > 0) {
+                            const addr = addressResponse[0];
+                            const formatted = [addr.streetNumber, addr.street, addr.city, addr.region].filter(Boolean).join(' ');
+                            setAddress(sanitizeAddress(formatted));
+                            closeSheet();
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          Alert.alert('Error', 'Could not fetch your current location.');
+                        }
+                      }}
+                    >
+                      <MaterialCommunityIcons name="crosshairs-gps" size={18} color={C.accent} />
+                      <Text style={styles.gpsBtnText}>Use current location</Text>
+                    </Pressable>
+
                     <TextInput
                       style={[styles.input, addressSuggestions.length > 0 && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 }]}
                       value={addressQuery}
                       onChangeText={handleAddressType}
-                      placeholder="Search address..."
+                      placeholder="Search street address..."
                       placeholderTextColor={C.textMuted}
                       returnKeyType="done"
-                      onSubmitEditing={() => handleSelect(() => setAddress(addressQuery.trim() || 'my place'))}
+                      onSubmitEditing={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}
                     />
                     
                     {addressSuggestions.length > 0 && (
@@ -413,14 +366,11 @@ export default function Home() {
                         {addressSuggestions.map((suggestion, index) => (
                           <Pressable
                             key={suggestion}
-                            style={[
-                              styles.suggestionItem,
-                              index === addressSuggestions.length - 1 && { borderBottomWidth: 0 }
-                            ]}
+                            style={[styles.suggestionItem, index === addressSuggestions.length - 1 && { borderBottomWidth: 0 }]}
                             onPress={() => {
                               setAddressQuery(suggestion);
                               setAddressSuggestions([]);
-                              handleSelect(() => setAddress(suggestion));
+                              handleSelect(() => setAddress(sanitizeAddress(suggestion)));
                             }}
                           >
                             <MaterialCommunityIcons name="map-marker-outline" size={20} color={C.textSecondary} />
@@ -430,7 +380,7 @@ export default function Home() {
                       </View>
                     )}
 
-                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(addressQuery.trim() || 'my place'))}>
+                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}>
                       <Text style={styles.ctaText}>Done</Text>
                     </Pressable>
                   </>
@@ -444,95 +394,32 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  body: {
-    flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 120,
-    justifyContent: 'space-between',
-  },
+  body: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 120, justifyContent: 'space-between' },
   logo: { color: C.text, fontSize: 22, fontWeight: '800' },
-
   sentence: { color: C.text, fontSize: 42, fontWeight: '700', letterSpacing: -1.2, lineHeight: 52 },
-  blank: {
-    fontWeight: '700',
-  },
+  blank: { fontWeight: '700' },
   blankEmpty: { opacity: 0.55 },
-
-  cta: {
-    backgroundColor: C.text, borderRadius: 999, paddingVertical: 18, alignItems: 'center',
-  },
-  ctaOff: { backgroundColor: '#CFCDC6' },
-  ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-
+  cta: { backgroundColor: C.text, borderRadius: 999, paddingVertical: 18, alignItems: 'center' },
+  ctaOff: { backgroundColor: C.disabled },
+  ctaText: { color: C.bg, fontSize: 17, fontWeight: '700' },
   modalRoot: { flex: 1 },
-  backdrop: { 
-    position: 'absolute',
-    top: 0, bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)' 
-  },
-  modalWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: 40, maxHeight: '85%', 
-  },
+  backdrop: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalWrap: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, maxHeight: '85%' },
   sheetTitle: { color: C.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 16 },
   option: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   optionLast: { borderBottomWidth: 0 },
-  
   optionName: { color: C.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.2 }, 
   optionExample: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
-  
-  input: {
-    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16,
-    padding: 16, fontSize: 18, color: C.text, marginBottom: 16,
-    letterSpacing: 0, 
-  },
-
-  pickerContainer: {
-    backgroundColor: C.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-    height: 180, 
-    justifyContent: 'center',
-  },
+  input: { backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16, padding: 16, fontSize: 18, color: C.text, marginBottom: 16 },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 12 },
+  gpsBtnText: { color: C.accent, fontSize: 16, fontWeight: '600' },
+  pickerContainer: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden', height: 180, justifyContent: 'center' },
   picker: { width: '100%', height: '100%' },
-
-  suggestionsBox: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  suggestionText: {
-    color: C.text,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-
-  nav: {
-    position: 'absolute', left: 16, right: 16, bottom: 20,
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.surface, borderColor: C.border, borderWidth: 1,
-    borderRadius: 28, paddingVertical: 10,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, elevation: 6,
-  },
-  navItem: { flex: 1, alignItems: 'center', gap: 2 },
-  navLabel: { fontSize: 11, fontWeight: '600' },
+  suggestionsBox: { backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, overflow: 'hidden' },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  suggestionText: { color: C.text, fontSize: 16, fontWeight: '500' },
+  nav: { position: 'absolute', left: 16, right: 16, bottom: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderColor: C.border, borderWidth: 1, borderRadius: 28, paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
 });

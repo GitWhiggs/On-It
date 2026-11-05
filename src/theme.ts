@@ -14,3 +14,27 @@ const THEMES: Record<'light' | 'dark', Theme> = {
 export function useTheme(): Theme {
   return THEMES[useColorScheme() === 'dark' ? 'dark' : 'light'];
 }
+
+// Colors for the Home, Jobs and tab screens (the warm palette), light and dark.
+export type AppColors = {
+  bg: string; surface: string; border: string;
+  text: string; textSecondary: string; textMuted: string;
+  accent: string; disabled: string;
+};
+
+const APP: Record<'light' | 'dark', AppColors> = {
+  light: {
+    bg: '#FAFAF7', surface: '#FFFFFF', border: '#DAD8D1',
+    text: '#111111', textSecondary: '#5E5E5A', textMuted: '#9A9A94',
+    accent: '#3B83F6', disabled: '#CFCDC6',
+  },
+  dark: {
+    bg: '#111214', surface: '#1B1C20', border: '#2E3036',
+    text: '#F5F5F2', textSecondary: '#A8A8A2', textMuted: '#76766F',
+    accent: '#5B9BFF', disabled: '#3A3B40',
+  },
+};
+
+export function useAppColors(): AppColors {
+  return APP[useColorScheme() === 'dark' ? 'dark' : 'light'];
+}

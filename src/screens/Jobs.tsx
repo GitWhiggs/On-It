@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import TrackMap from '@/components/TrackMap';
 import { supabase } from '@/lib/supabase';
 import { getUid } from '@/lib/auth';
+import * as Haptics from 'expo-haptics';
 
 const C = {
   bg: '#FAFAF7',
@@ -315,7 +316,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
               </View>
 
               <Pressable style={[styles.row, styles.helpRow]} onPress={openHelp} accessibilityRole="button">
-                <Text style={styles.helpText}>Need help with this gig?</Text>
+                <Text style={styles.helpText}>Need help with this job?</Text>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={C.textMuted} />
               </Pressable>
             </View>
@@ -336,7 +337,19 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           <View style={styles.block}>
             {pastJobs.length > 0 ? (
               pastJobs.map((job) => (
-                <View key={job.id} style={[styles.row, styles.pastRow]}>
+                <Pressable
+                  key={job.id}
+                  style={[styles.row, styles.pastRow]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({
+                      pathname: '/past-job/[id]',
+                      params: { id: job.id },
+                    });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Past job: ${job.category}, ${money(job.amount)}. Tap to view details.`}
+                >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pastTitle}>{job.category}</Text>
                     <Text style={styles.pastSub}>
@@ -344,7 +357,8 @@ export default function Jobs({ goHome, unread }: JobsProps) {
                     </Text>
                   </View>
                   <Text style={styles.pastPrice}>{money(job.amount)}</Text>
-                </View>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={C.textMuted} style={{ marginLeft: 8 }} />
+                </Pressable>
               ))
             ) : (
               <View style={[styles.row, styles.pastRow, { justifyContent: 'center', paddingVertical: 20 }]}>
