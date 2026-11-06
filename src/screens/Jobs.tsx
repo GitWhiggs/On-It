@@ -91,6 +91,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [pastJobs, setPastJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const askPress = useRef(new Animated.Value(0)).current;
 
   // The status comes from the job itself (its "stage" column).
   const step = Math.min(Math.max(activeJob?.stage ?? 0, 0), STEPS.length - 1);
@@ -210,9 +211,31 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           <View style={styles.emptyBody}>
             <Text style={styles.emptyHead}>Nothing yet.</Text>
             <Text style={styles.emptySub}>When you ask for help, you can follow it here.</Text>
-            <Pressable style={styles.emptyBtn} onPress={goHome} accessibilityRole="button">
-              <Text style={styles.emptyBtnText}>Ask for help</Text>
-            </Pressable>
+            <Animated.View
+              style={[
+                styles.emptyBtn,
+                {
+                  transform: [
+                    { scale: askPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                    { translateY: askPress.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                style={styles.emptyBtnPressable}
+                onPressIn={() => Animated.timing(askPress, { toValue: 1, duration: 230, useNativeDriver: true }).start()}
+                onPressOut={() => Animated.spring(askPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+                onPress={goHome}
+                accessibilityRole="button"
+              >
+                <Text style={styles.emptyBtnText}>Ask for help</Text>
+              </Pressable>
+              <View pointerEvents="none" style={styles.emptyBtnRim} />
+              <View pointerEvents="none" style={styles.emptyBtnInnerRim} />
+              <View pointerEvents="none" style={styles.emptyBtnTopReflection} />
+              <View pointerEvents="none" style={styles.emptyBtnSoftReflection} />
+            </Animated.View>
           </View>
         </View>
       </SafeAreaView>
@@ -325,9 +348,31 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           <View style={styles.idle}>
             <Text style={styles.idleHead}>Nothing in progress.</Text>
             <Text style={styles.emptySub}>Need a hand with something?</Text>
-            <Pressable style={styles.emptyBtn} onPress={goHome} accessibilityRole="button">
-              <Text style={styles.emptyBtnText}>Ask for help</Text>
-            </Pressable>
+            <Animated.View
+              style={[
+                styles.emptyBtn,
+                {
+                  transform: [
+                    { scale: askPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                    { translateY: askPress.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                style={styles.emptyBtnPressable}
+                onPressIn={() => Animated.timing(askPress, { toValue: 1, duration: 230, useNativeDriver: true }).start()}
+                onPressOut={() => Animated.spring(askPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+                onPress={goHome}
+                accessibilityRole="button"
+              >
+                <Text style={styles.emptyBtnText}>Ask for help</Text>
+              </Pressable>
+              <View pointerEvents="none" style={styles.emptyBtnRim} />
+              <View pointerEvents="none" style={styles.emptyBtnInnerRim} />
+              <View pointerEvents="none" style={styles.emptyBtnTopReflection} />
+              <View pointerEvents="none" style={styles.emptyBtnSoftReflection} />
+            </Animated.View>
           </View>
         )}
 
@@ -384,7 +429,65 @@ const styles = StyleSheet.create({
   emptyBody: { flex: 1, justifyContent: 'center', gap: 12 },
   emptyHead: { color: C.text, fontSize: 40, fontWeight: '800', letterSpacing: -1 },
   emptySub: { color: C.textSecondary, fontSize: 17, lineHeight: 24, maxWidth: 300 },
-  emptyBtn: { alignSelf: 'flex-start', backgroundColor: C.text, borderRadius: 999, paddingVertical: 14, paddingHorizontal: 24, marginTop: 8 },
+  emptyBtn: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(5, 6, 8, 0.94)',
+    borderRadius: 999,
+    marginTop: 8,
+    overflow: 'hidden',
+    borderWidth: 1.2,
+    borderColor: 'rgba(205, 214, 228, 0.66)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.30,
+    shadowRadius: 13,
+    elevation: 6,
+  },
+  emptyBtnPressable: {
+    minHeight: 50,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+  },
+  emptyBtnRim: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.46)',
+    borderLeftColor: 'rgba(224,231,242,0.22)',
+    borderRightColor: 'rgba(224,231,242,0.16)',
+    borderBottomColor: 'rgba(118,128,145,0.46)',
+  },
+  emptyBtnInnerRim: {
+    position: 'absolute',
+    top: 2,
+    bottom: 2,
+    left: 2,
+    right: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(220,228,240,0.12)',
+  },
+  emptyBtnTopReflection: {
+    position: 'absolute',
+    top: 2,
+    left: '17%',
+    right: '17%',
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.075)',
+  },
+  emptyBtnSoftReflection: {
+    position: 'absolute',
+    top: 0,
+    left: '8%',
+    right: '8%',
+    height: 1,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.26)',
+  },
   emptyBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   idle: { gap: 8, paddingVertical: 8 },

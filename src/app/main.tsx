@@ -113,7 +113,7 @@ function MainInner() {
         </Animated.View>
       </View>
 
-      <BottomNav index={page} onChange={jumpTo} dots={unread ? [1] : []} />
+      <BottomNav index={page} onChange={jumpTo} dots={unread ? [true] : []} />
 
     </View>
   );
