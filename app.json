@@ -14,7 +14,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.onitapp.app",
-      "merchantIdentifier": "merchant.com.onitapp.app",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
@@ -34,7 +33,6 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.onitapp.app",
           "enableGooglePay": true
         }
       ],

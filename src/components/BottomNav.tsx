@@ -1,106 +1,57 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SymbolView, SymbolViewProps } from 'expo-symbols';
+import { GlassView } from 'expo-glass-effect';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-type SymbolName = SymbolViewProps['name'];
-type FallbackIcon = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-const C = {
-  text: '#111111',
-  muted: '#6F6F6A',
-  line: '#DAD8D1',
-  accent: '#3B83F6',
-};
-
-// Apple SF Symbols, filled when selected. "fallback" is only used if SF Symbols aren't available (Android).
-const TABS: { label: string; symbol: SymbolName; symbolOn: SymbolName; fallback: FallbackIcon }[] = [
-  { label: 'Home', symbol: 'house', symbolOn: 'house.fill', fallback: 'home-outline' },
-  { label: 'Jobs', symbol: 'list.clipboard', symbolOn: 'list.clipboard.fill', fallback: 'clipboard-list-outline' },
-  { label: 'Account', symbol: 'person.crop.circle', symbolOn: 'person.crop.circle.fill', fallback: 'account-circle-outline' },
-];
-
-const PILL_PADDING = 6;
-const hasGlass = isLiquidGlassAvailable();
-
-export default function BottomNav({
-  index,
-  onChange,
-  dots = [],
-}: {
+type Props = {
   index: number;
   onChange: (i: number) => void;
-  dots?: number[];
-}) {
+  dots?: boolean[];
+};
+
+const TABS = [
+  { label: 'Home', icon: 'magnify' },
+  { label: 'Jobs', icon: 'clock-outline' },
+  { label: 'Account', icon: 'account-outline' },
+] as const;
+
+export default function BottomNav({ index, onChange, dots = [] }: Props) {
   const insets = useSafeAreaInsets();
-  const [rowWidth, setRowWidth] = useState(0);
-  const x = useRef(new Animated.Value(0)).current;
-  const placed = useRef(false);
-  const itemWidth = rowWidth / TABS.length;
-
-  // Slide the highlight under the selected tab.
-  useEffect(() => {
-    if (!itemWidth) return;
-    if (!placed.current) {
-      x.setValue(index * itemWidth);
-      placed.current = true;
-      return;
-    }
-    Animated.spring(x, {
-      toValue: index * itemWidth,
-      stiffness: 420,
-      damping: 38,
-      mass: 1,
-      useNativeDriver: true,
-    }).start();
-  }, [index, itemWidth, x]);
-
-  const onRowLayout = (e: LayoutChangeEvent) => setRowWidth(e.nativeEvent.layout.width);
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom - 14, 10) }]}>
-      <GlassView glassEffectStyle="regular" style={[styles.pill, !hasGlass && styles.pillFallback]}>
-        <View style={styles.row} onLayout={onRowLayout}>
-          {itemWidth > 0 && (
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.lens, { width: itemWidth, transform: [{ translateX: x }] }]}
-            />
-          )}
-
-          {TABS.map((tab, i) => {
-            const active = i === index;
-            const color = active ? C.text : C.muted;
-            return (
-              <Pressable
-                key={tab.label}
-                style={styles.item}
-                onPress={() => {
-                  if (!active) Haptics.selectionAsync();
+    <View style={[styles.wrap, { bottom: Math.max(insets.bottom, 8) }]} pointerEvents="box-none">
+      <GlassView 
+        style={styles.pill} 
+        glassEffectStyle="regular"
+        tintColor="rgba(255, 255, 255, 0.65)"
+      >
+        {TABS.map((tab, i) => {
+          const active = index === i;
+          return (
+            <Pressable
+              key={tab.label}
+              style={[styles.tab, active && styles.activeTab]}
+              onPress={() => {
+                if (index !== i) {
+                  Haptics.selectionAsync();
                   onChange(i);
-                }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={tab.label}
-              >
-                <View>
-                  <SymbolView
-                    name={active ? tab.symbolOn : tab.symbol}
-                    size={24}
-                    tintColor={color}
-                    weight={active ? 'semibold' : 'regular'}
-                    fallback={<MaterialCommunityIcons name={tab.fallback} size={24} color={color} />}
-                  />
-                  {dots.includes(i) && <View style={styles.dot} />}
-                </View>
-                <Text style={[styles.label, { color }]}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={tab.label}
+            >
+              <View>
+                <MaterialCommunityIcons
+                  name={tab.icon}
+                  size={24}
+                  color={active ? '#111111' : '#71717A'}
+                />
+                {dots[i] && <View style={styles.dot} />}
+              </View>
+            </Pressable>
+          );
+        })}
       </GlassView>
     </View>
   );
@@ -109,47 +60,46 @@ export default function BottomNav({
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: 16,
+    right: 16,
     alignItems: 'center',
-    paddingHorizontal: 24,
+    zIndex: 100,
   },
   pill: {
+    flexDirection: 'row',
+    height: 64,
     width: '100%',
-    maxWidth: 380,
-    borderRadius: 36,
-    padding: PILL_PADDING,
-  },
-  // Used when liquid glass isn't available (iOS before 26)
-  pillFallback: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 32,
+    paddingHorizontal: 8,
+    alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: C.line,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  row: { flexDirection: 'row' },
-  lens: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    borderRadius: 30,
-    backgroundColor: 'rgba(17,17,17,0.07)',
-  },
-  item: {
+  tab: {
     flex: 1,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 9,
+    marginHorizontal: 4,
   },
-  label: { fontSize: 11, fontWeight: '600' },
+  activeTab: {
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+  },
   dot: {
     position: 'absolute',
-    top: -2,
-    right: -4,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: C.accent,
+    top: -1,
+    right: -3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3B82F6',
+    borderWidth: 1,
+    borderColor: '#FAFAF7',
   },
 });
