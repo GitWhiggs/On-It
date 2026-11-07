@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Keyboard, Platform, ScrollView, LayoutAnimation, UIManager, Alert
+  View, Text, StyleSheet, Animated, TextInput, Pressable, KeyboardAvoidingView, Keyboard, Platform, ScrollView, LayoutAnimation, UIManager, Alert
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -69,7 +69,11 @@ export default function CreateJob() {
   const params = useLocalSearchParams<{ category?: string; address?: string; when?: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   
-  const detailsInputRef = useRef<any>(null); 
+  const detailsInputRef = useRef<any>(null);
+  const addDetailsPress = useRef(new Animated.Value(0)).current;
+  const postJobPress = useRef(new Animated.Value(0)).current;
+  const whereDonePress = useRef(new Animated.Value(0)).current;
+  const goodToKnowDonePress = useRef(new Animated.Value(0)).current;
 
   const [category, setCategory] = useState(first(params.category));
   const [address, setAddress] = useState(first(params.address) || 'my place');
@@ -295,10 +299,29 @@ export default function CreateJob() {
             </View>
 
             {!showDetails ? (
-              <Pressable style={styles.addDetailsBtn} onPress={toggleDetails}>
-                <MaterialCommunityIcons name="plus-circle" size={20} color={C.accent} />
-                <Text style={styles.addDetailsText}>Add specific details</Text>
-              </Pressable>
+              <Animated.View
+                style={[
+                  styles.addDetailsGlass,
+                  {
+                    transform: [
+                      { scale: addDetailsPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                      { translateY: addDetailsPress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable
+                  style={styles.addDetailsBtn}
+                  onPressIn={() => Animated.timing(addDetailsPress, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
+                  onPressOut={() => Animated.spring(addDetailsPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+                  onPress={toggleDetails}
+                >
+                  <MaterialCommunityIcons name="plus-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.addDetailsText}>Add specific details</Text>
+                </Pressable>
+                <View pointerEvents="none" style={styles.blueGlassRim} />
+                <View pointerEvents="none" style={styles.blueGlassHighlight} />
+              </Animated.View>
             ) : (
               <View style={styles.section}>
                 <View style={styles.detailsHeader}>
@@ -359,9 +382,34 @@ export default function CreateJob() {
         </ScrollView>
 
         <View style={[styles.bottomBar, { paddingBottom: keyboardOpen ? 12 : insets.bottom + 12 }]}>
-          <Pressable style={({ pressed }) => [styles.cta, !canPost && styles.ctaOff, pressed && canPost && { transform: [{ scale: 0.97 }] }]} disabled={!canPost} onPress={handlePost}>
-            <Text style={styles.ctaText}>{loading ? 'Processing...' : canPost ? `Post job • ${money(total)}` : 'Post job'}</Text>
-          </Pressable>
+          <Animated.View
+            style={[
+              styles.postGlass,
+              !canPost && styles.postGlassOff,
+              {
+                transform: [
+                  { scale: postJobPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                  { translateY: postJobPress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              style={styles.postGlassPressable}
+              disabled={!canPost}
+              onPressIn={() => canPost && Animated.timing(postJobPress, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
+              onPressOut={() => Animated.spring(postJobPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+              onPress={handlePost}
+            >
+              <Text style={styles.ctaText}>{loading ? 'Processing...' : canPost ? `Post job • ${money(total)}` : 'Post job'}</Text>
+            </Pressable>
+            {canPost && (
+              <>
+                <View pointerEvents="none" style={styles.blueGlassRim} />
+                <View pointerEvents="none" style={styles.blueGlassHighlight} />
+              </>
+            )}
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
 
@@ -396,9 +444,29 @@ export default function CreateJob() {
                 );
               })}
             </View>
-            <Pressable style={[styles.cta, { marginTop: 24 }]} onPress={closeSheet}>
-              <Text style={styles.ctaText}>Done</Text>
-            </Pressable>
+            <Animated.View
+              style={[
+                styles.sheetBlueGlass,
+                { marginTop: 24 },
+                {
+                  transform: [
+                    { scale: goodToKnowDonePress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                    { translateY: goodToKnowDonePress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                style={styles.sheetBlueGlassPressable}
+                onPressIn={() => Animated.timing(goodToKnowDonePress, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
+                onPressOut={() => Animated.spring(goodToKnowDonePress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+                onPress={closeSheet}
+              >
+                <Text style={styles.ctaText}>Done</Text>
+              </Pressable>
+              <View pointerEvents="none" style={styles.blueGlassRim} />
+              <View pointerEvents="none" style={styles.blueGlassHighlight} />
+            </Animated.View>
           </>
         )}
 
@@ -479,9 +547,29 @@ export default function CreateJob() {
               </View>
             )}
 
-            <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => pick(() => setAddress(sanitizeAddress(addressQuery)))}>
-              <Text style={styles.ctaText}>Done</Text>
-            </Pressable>
+            <Animated.View
+              style={[
+                styles.sheetBlueGlass,
+                { marginTop: 16 },
+                {
+                  transform: [
+                    { scale: whereDonePress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                    { translateY: whereDonePress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                style={styles.sheetBlueGlassPressable}
+                onPressIn={() => Animated.timing(whereDonePress, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
+                onPressOut={() => Animated.spring(whereDonePress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+                onPress={() => pick(() => setAddress(sanitizeAddress(addressQuery)))}
+              >
+                <Text style={styles.ctaText}>Done</Text>
+              </Pressable>
+              <View pointerEvents="none" style={styles.blueGlassRim} />
+              <View pointerEvents="none" style={styles.blueGlassHighlight} />
+            </Animated.View>
           </>
         )}
 
@@ -548,8 +636,28 @@ const styles = StyleSheet.create({
   section: { gap: 6 },
   sectionTitle: { color: C.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
   sectionSub: { color: C.textSecondary, fontSize: 14, lineHeight: 20 },
-  addDetailsBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: -8 },
-  addDetailsText: { color: C.accent, fontSize: 15, fontWeight: '600' },
+  addDetailsGlass: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    marginTop: -8,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: C.accent,
+    shadowColor: '#1D5FCB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.20,
+    shadowRadius: 9,
+    elevation: 3,
+  },
+  addDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
+  addDetailsText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   detailsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   removeText: { color: C.textMuted, fontSize: 14, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -562,6 +670,70 @@ const styles = StyleSheet.create({
   priceSign: { color: C.textSecondary, fontSize: 18, fontWeight: '700' },
   priceInput: { flex: 1, color: C.text, fontSize: 18, fontWeight: '700', letterSpacing: -0.3, paddingVertical: 0, includeFontPadding: false, height: 28 },
   bottomBar: { backgroundColor: C.surface, paddingHorizontal: 24, paddingTop: 12 },
+  postGlass: {
+    position: 'relative',
+    minHeight: 54,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: C.accent,
+    shadowColor: '#1D5FCB',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 11,
+    elevation: 4,
+  },
+  postGlassOff: {
+    backgroundColor: 'rgba(59, 131, 246, 0.30)',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  postGlassPressable: {
+    minHeight: 54,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 999,
+  },
+  blueGlassRim: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.22)',
+    borderLeftColor: 'rgba(255,255,255,0.13)',
+    borderRightColor: 'rgba(255,255,255,0.10)',
+    borderBottomColor: 'rgba(20,75,165,0.20)',
+  },
+  blueGlassHighlight: {
+    position: 'absolute',
+    top: 1,
+    left: 18,
+    right: 18,
+    height: 1,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  sheetBlueGlass: {
+    position: 'relative',
+    minHeight: 54,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: C.accent,
+    shadowColor: '#1D5FCB',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 11,
+    elevation: 4,
+  },
+  sheetBlueGlassPressable: {
+    minHeight: 54,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 999,
+  },
   cta: { backgroundColor: C.accent, borderRadius: 999, paddingVertical: 16, alignItems: 'center' },
   ctaOff: { backgroundColor: 'rgba(59, 131, 246, 0.3)' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '700' },

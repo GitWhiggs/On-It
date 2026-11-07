@@ -61,10 +61,10 @@ export default function Sheet({ visible, onClose, children }: Props) {
       Keyboard.dismiss();
       keyboard.setValue(0);
       Animated.parallel([
-        Animated.timing(fade, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(fade, { toValue: 0, duration: 260, useNativeDriver: true }),
         Animated.timing(slide, {
           toValue: SCREEN_HEIGHT,
-          duration: 250,
+          duration: 380,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),

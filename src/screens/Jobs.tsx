@@ -80,6 +80,20 @@ function Segment({ state }: { state: SegState }) {
 
 const money = (n: number | string) => `$${Number(n).toFixed(2)}`;
 
+function categoryIcon(category: string) {
+  const value = category.toLowerCase();
+  if (/mov|truck/.test(value)) return 'truck';
+  if (/yard|lawn|garden|leaf/.test(value)) return 'leaf';
+  if (/errand|grocery|shopping|bag/.test(value)) return 'shopping';
+  if (/clean/.test(value)) return 'broom';
+  if (/furn|assembly|build/.test(value)) return 'hammer-wrench';
+  return 'briefcase-outline';
+}
+
+function monthLabel(date: string) {
+  return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
 interface JobsProps {
   goHome?: () => void;
   unread?: boolean;
@@ -202,45 +216,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
     );
   }
 
-  if (!activeJob && pastJobs.length === 0) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style="dark" />
-        <View style={styles.empty}>
-          <Text style={styles.title}>Your jobs</Text>
-          <View style={styles.emptyBody}>
-            <Text style={styles.emptyHead}>Nothing yet.</Text>
-            <Text style={styles.emptySub}>When you ask for help, you can follow it here.</Text>
-            <Animated.View
-              style={[
-                styles.emptyBtn,
-                {
-                  transform: [
-                    { scale: askPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
-                    { translateY: askPress.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
-                  ],
-                },
-              ]}
-            >
-              <Pressable
-                style={styles.emptyBtnPressable}
-                onPressIn={() => Animated.timing(askPress, { toValue: 1, duration: 230, useNativeDriver: true }).start()}
-                onPressOut={() => Animated.spring(askPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
-                onPress={goHome}
-                accessibilityRole="button"
-              >
-                <Text style={styles.emptyBtnText}>Ask for help</Text>
-              </Pressable>
-              <View pointerEvents="none" style={styles.emptyBtnRim} />
-              <View pointerEvents="none" style={styles.emptyBtnInnerRim} />
-              <View pointerEvents="none" style={styles.emptyBtnTopReflection} />
-              <View pointerEvents="none" style={styles.emptyBtnSoftReflection} />
-            </Animated.View>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -257,9 +232,12 @@ export default function Jobs({ goHome, unread }: JobsProps) {
               accessibilityRole="button"
               accessibilityLabel={`${HEADLINES[step]} Step ${step + 1} of ${STEPS.length}.`}
             >
-              <Text style={styles.headline} numberOfLines={2}>
-                {HEADLINES[step]}
-              </Text>
+              <View style={styles.activeHeadlineRow}>
+                <View style={styles.activeStatusDot} />
+                <Text style={styles.headline} numberOfLines={2}>
+                  {HEADLINES[step]}
+                </Text>
+              </View>
 
               <Pressable onPress={() => {}}>
                 <TrackMap step={step} helper={mapHelper} onActionPress={handleCompleteJob} />
@@ -346,14 +324,12 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           </>
         ) : (
           <View style={styles.idle}>
-            <Text style={styles.idleHead}>Nothing in progress.</Text>
-            <Text style={styles.emptySub}>Need a hand with something?</Text>
             <Animated.View
               style={[
                 styles.emptyBtn,
                 {
                   transform: [
-                    { scale: askPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) },
+                    { scale: askPress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) },
                     { translateY: askPress.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
                   ],
                 },
@@ -361,17 +337,15 @@ export default function Jobs({ goHome, unread }: JobsProps) {
             >
               <Pressable
                 style={styles.emptyBtnPressable}
-                onPressIn={() => Animated.timing(askPress, { toValue: 1, duration: 230, useNativeDriver: true }).start()}
+                onPressIn={() => Animated.timing(askPress, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
                 onPressOut={() => Animated.spring(askPress, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
                 onPress={goHome}
                 accessibilityRole="button"
               >
-                <Text style={styles.emptyBtnText}>Ask for help</Text>
+                <Text style={styles.emptyBtnText}>Get started</Text>
               </Pressable>
               <View pointerEvents="none" style={styles.emptyBtnRim} />
               <View pointerEvents="none" style={styles.emptyBtnInnerRim} />
-              <View pointerEvents="none" style={styles.emptyBtnTopReflection} />
-              <View pointerEvents="none" style={styles.emptyBtnSoftReflection} />
             </Animated.View>
           </View>
         )}
@@ -381,30 +355,51 @@ export default function Jobs({ goHome, unread }: JobsProps) {
           <Text style={styles.sectionTitle}>Past</Text>
           <View style={styles.block}>
             {pastJobs.length > 0 ? (
-              pastJobs.map((job) => (
-                <Pressable
-                  key={job.id}
-                  style={[styles.row, styles.pastRow]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push({
-                      pathname: '/past-job/[id]',
-                      params: { id: job.id },
-                    });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Past job: ${job.category}, ${money(job.amount)}. Tap to view details.`}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.pastTitle}>{job.category}</Text>
-                    <Text style={styles.pastSub}>
-                      {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </Text>
+              (() => {
+                const groups = pastJobs.reduce<Record<string, Job[]>>((acc, job) => {
+                  const key = monthLabel(job.created_at);
+                  (acc[key] ||= []).push(job);
+                  return acc;
+                }, {});
+                return Object.entries(groups).map(([month, jobs]) => (
+                  <View key={month}>
+                    <Text style={styles.monthHeader}>{month}</Text>
+                    {jobs.map((job) => (
+                      <Pressable
+                        key={job.id}
+                        style={[styles.row, styles.pastRow]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push({
+                            pathname: '/past-job/[id]',
+                            params: { id: job.id },
+                          });
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Completed ${job.category}, ${money(job.amount)}. Tap to view receipt.`}
+                      >
+                        <View style={styles.categoryIcon}>
+                          <MaterialCommunityIcons name={categoryIcon(job.category) as any} size={19} color={C.textSecondary} />
+                        </View>
+                        <View style={styles.pastInfo}>
+                          <Text style={styles.pastTitle}>{job.category}</Text>
+                          <View style={styles.pastMeta}>
+                            <Text style={styles.pastSub}>
+                              {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Text>
+                            <View style={styles.completedLabel}>
+                              <View style={styles.completedDot} />
+                              <Text style={styles.completedText}>Completed</Text>
+                            </View>
+                          </View>
+                        </View>
+                        <Text style={styles.pastPrice}>{money(job.amount)}</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color={C.textMuted} style={{ marginLeft: 7 }} />
+                      </Pressable>
+                    ))}
                   </View>
-                  <Text style={styles.pastPrice}>{money(job.amount)}</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={C.textMuted} style={{ marginLeft: 8 }} />
-                </Pressable>
-              ))
+                ));
+              })()
             ) : (
               <View style={[styles.row, styles.pastRow, { justifyContent: 'center', paddingVertical: 20 }]}>
                 <Text style={{ color: C.textMuted, fontSize: 14 }}>No past jobs yet</Text>
@@ -420,7 +415,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 130, gap: 24 },
+  content: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 150, gap: 24 },
   title: { color: C.text, fontSize: 32, fontWeight: '800', letterSpacing: -0.8 },
   sectionTitle: { color: C.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 8 },
   hint: { color: C.textMuted, fontSize: 12, marginTop: -12 },
@@ -436,8 +431,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 8,
     overflow: 'hidden',
-    borderWidth: 1.2,
-    borderColor: 'rgba(205, 214, 228, 0.66)',
+    borderWidth: 0.8,
+    borderColor: 'rgba(205, 214, 228, 0.30)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.30,
@@ -446,6 +441,7 @@ const styles = StyleSheet.create({
   },
   emptyBtnPressable: {
     minHeight: 50,
+    alignSelf: 'stretch',
     justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -455,7 +451,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     borderRadius: 999,
     borderWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.46)',
+    borderTopColor: 'rgba(255,255,255,0.04)',
     borderLeftColor: 'rgba(224,231,242,0.22)',
     borderRightColor: 'rgba(224,231,242,0.16)',
     borderBottomColor: 'rgba(118,128,145,0.46)',
@@ -470,28 +466,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(220,228,240,0.12)',
   },
-  emptyBtnTopReflection: {
-    position: 'absolute',
-    top: 2,
-    left: '17%',
-    right: '17%',
-    height: 9,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.075)',
-  },
-  emptyBtnSoftReflection: {
-    position: 'absolute',
-    top: 0,
-    left: '8%',
-    right: '8%',
-    height: 1,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.26)',
-  },
+
+
   emptyBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  idle: { gap: 8, paddingVertical: 8 },
-  idleHead: { color: C.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  idle: { gap: 12, paddingVertical: 2 },
+  idleMessageRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  idleHead: { color: C.textSecondary, fontSize: 15, fontWeight: '600', letterSpacing: -0.1 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.textMuted },
+  activeHeadlineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  activeStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent, marginTop: 11 },
 
   live: { backgroundColor: C.text, borderRadius: 20, padding: 20, gap: 16 },
   headline: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: -0.6, lineHeight: 34, minHeight: 68 },
@@ -518,8 +502,15 @@ const styles = StyleSheet.create({
   detailStrong: { fontWeight: '800' },
   helpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
   helpText: { color: C.text, fontSize: 16, fontWeight: '500' },
-  pastRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-  pastTitle: { color: C.text, fontSize: 17, fontWeight: '600' },
-  pastSub: { color: C.textSecondary, fontSize: 14, marginTop: 2 },
-  pastPrice: { color: C.text, fontSize: 16, fontWeight: '600' },
+  monthHeader: { color: C.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase', paddingTop: 16, paddingBottom: 5 },
+  pastRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
+  categoryIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.tile, alignItems: 'center', justifyContent: 'center' },
+  pastInfo: { flex: 1, minWidth: 0 },
+  pastTitle: { color: C.text, fontSize: 16, fontWeight: '600' },
+  pastMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  pastSub: { color: C.textMuted, fontSize: 13 },
+  completedLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  completedDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#579A70' },
+  completedText: { color: '#579A70', fontSize: 11, fontWeight: '600' },
+  pastPrice: { color: C.textSecondary, fontSize: 15, fontWeight: '500' }
 });
