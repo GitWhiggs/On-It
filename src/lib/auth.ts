@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import {
   getAuth as getFirebaseAuth,
   onAuthStateChanged as firebaseOnAuthStateChanged,
@@ -7,82 +5,58 @@ import {
   signOut as firebaseSignOut,
 } from '@react-native-firebase/auth';
 
-// Forced mock mode enabled for local development to bypass Firebase SMS billing/config blocks
-const useMock = true;
-
 type Listener = (user: unknown) => void;
 
-// Mock state
-let mockUser: unknown = null;
-const listeners = new Set<Listener>();
-
-function setMockUser(user: unknown) {
-  mockUser = user;
-  listeners.forEach((cb) => cb(user));
+/**
+ * Returns the React Native Firebase Auth instance.
+ * Phone verification is handled by Firebase; there is no mock-code fallback.
+ */
+export function getAuth() {
+  return getFirebaseAuth();
 }
 
-export function getAuth(): any {
-  if (!useMock) {
-    try {
-      return getFirebaseAuth();
-    } catch (e) {
-      console.warn("Firebase Auth not ready yet", e);
-      return {};
-    }
-  }
-  return {};
+export function onAuthStateChanged(
+  auth: ReturnType<typeof getFirebaseAuth>,
+  cb: Listener
+) {
+  return firebaseOnAuthStateChanged(auth, cb as any);
 }
 
-export function onAuthStateChanged(auth: any, cb: Listener) {
-  if (!useMock) {
-    try {
-      return firebaseOnAuthStateChanged(auth, cb as any);
-    } catch (e) {
-      console.warn("Firebase Auth not ready yet", e);
-      return () => {};
-    }
+export async function signInWithPhoneNumber(
+  auth: ReturnType<typeof getFirebaseAuth>,
+  phone: string
+) {
+  try {
+    return await firebaseSignInWithPhoneNumber(auth, phone);
+  } catch (error: any) {
+    console.error('[On-It] Firebase error code:', error?.code);
+    console.error('[On-It] Firebase error message:', error?.message);
+    console.error('[On-It] Native error code:', error?.nativeErrorCode);
+    console.error('[On-It] Native error message:', error?.nativeErrorMessage);
+
+    console.error(
+      '[On-It] Firebase userInfo:',
+      error?.userInfo
+    );
+
+    console.error(
+      '[On-It] Firebase customData:',
+      error?.customData
+    );
+
+    console.error(
+      '[On-It] Firebase userInfo JSON:',
+      JSON.stringify(error?.userInfo, null, 2)
+    );
+
+    throw error;
   }
-  listeners.add(cb);
-  cb(mockUser);
-  return () => {
-    listeners.delete(cb);
-  };
 }
 
-export async function signInWithPhoneNumber(auth: any, phone: string) {
-  if (!useMock) {
-    try {
-      return await firebaseSignInWithPhoneNumber(auth, phone);
-    } catch (e) {
-      console.warn("Firebase Auth not ready yet", e);
-      throw e;
-    }
-  }
-  return {
-    confirm: async (code: string) => {
-      setMockUser({ uid: `mock-${phone}`, phoneNumber: phone });
-      return true;
-    },
-  };
-}
-
-export async function signOut(auth: any) {
-  if (!useMock) {
-    try {
-      return await firebaseSignOut(auth);
-    } catch (e) {
-      console.warn("Firebase Auth not ready yet", e);
-      throw e;
-    }
-  }
-  setMockUser(null);
+export async function signOut(auth: ReturnType<typeof getFirebaseAuth>) {
+  return firebaseSignOut(auth);
 }
 
 export function getUid(): string | null {
-  if (useMock) return (mockUser as { uid?: string } | null)?.uid ?? null;
-  try {
-    return getFirebaseAuth().currentUser?.uid ?? null;
-  } catch {
-    return null;
-  }
+  return getFirebaseAuth().currentUser?.uid ?? null;
 }

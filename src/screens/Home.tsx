@@ -81,6 +81,49 @@ function AnimatedTextLink({
   );
 }
 
+
+function GlassSheetButton({
+  label,
+  onPress,
+  styles,
+  marginTop = 0,
+}: {
+  label: string;
+  onPress: () => void;
+  styles: any;
+  marginTop?: number;
+}) {
+  const pressAnim = useRef(new Animated.Value(0)).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.sheetGlassCta,
+        { marginTop },
+        {
+          transform: [
+            { scale: pressAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) },
+            { translateY: pressAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
+          ],
+        },
+      ]}
+    >
+      <Pressable
+        style={styles.sheetGlassPressable}
+        onPressIn={() => Animated.timing(pressAnim, { toValue: 1, duration: 110, useNativeDriver: true }).start()}
+        onPressOut={() => Animated.spring(pressAnim, { toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true }).start()}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <Text style={styles.ctaText}>{label}</Text>
+      </Pressable>
+      <View pointerEvents="none" style={styles.heroGlassRim} />
+      <View pointerEvents="none" style={styles.heroGlassInnerRim} />
+    </Animated.View>
+  );
+}
+
 export default function Home() {
   const C = useAppColors();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -383,9 +426,12 @@ export default function Home() {
                       />
                     </View>
 
-                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={confirmTime}>
-                      <Text style={styles.ctaText}>Confirm Time</Text>
-                    </Pressable>
+                    <GlassSheetButton
+                      label="Confirm Time"
+                      onPress={confirmTime}
+                      styles={styles}
+                      marginTop={16}
+                    />
                   </>
                 )}
 
@@ -457,9 +503,12 @@ export default function Home() {
                       </View>
                     )}
 
-                    <Pressable style={[styles.cta, { marginTop: 16 }]} onPress={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}>
-                      <Text style={styles.ctaText}>Done</Text>
-                    </Pressable>
+                    <GlassSheetButton
+                      label="Done"
+                      onPress={() => handleSelect(() => setAddress(sanitizeAddress(addressQuery)))}
+                      styles={styles}
+                      marginTop={16}
+                    />
                   </>
                 )}
               </ScrollView>
@@ -544,6 +593,31 @@ const makeStyles = (C: AppColors) => StyleSheet.create({
     borderColor: 'rgba(220,228,240,0.06)',
   },
 
+
+  sheetGlassCta: {
+    position: 'relative',
+    minHeight: 58,
+    paddingVertical: 0,
+    backgroundColor: 'rgba(5, 6, 8, 0.94)',
+    borderRadius: 999,
+    borderWidth: 1.2,
+    borderColor: 'rgba(205, 214, 228, 0.30)',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  sheetGlassPressable: {
+    width: '100%',
+    minHeight: 58,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 999,
+  },
 
   ctaOff: { backgroundColor: C.disabled },
   ctaText: { color: C.bg, fontSize: 17, fontWeight: '700' },

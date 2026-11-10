@@ -1,11 +1,25 @@
+
 // Login screen: phone number, then a 6-digit text code. No password.
 // Firebase sends the code by text and signs the person in.
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
-import { getAuth, onAuthStateChanged, signInWithPhoneNumber, signOut } from '@/lib/auth';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithPhoneNumber,
+  signOut,
+} from '@/lib/auth';
 import { BLUE, useTheme } from '@/theme';
 import { useRouter } from 'expo-router';
 
@@ -15,12 +29,21 @@ type Confirmation = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
 // Turns Firebase error codes into plain words.
 function friendlyError(e: unknown): string {
   const code = (e as { code?: string })?.code ?? '';
-  if (code === 'auth/invalid-phone-number') return 'That phone number doesn’t look right.';
-  if (code === 'auth/too-many-requests') return 'Too many tries. Wait a few minutes and try again.';
-  if (code === 'auth/quota-exceeded') return 'We can’t send texts right now. Try again later.';
+
+  if (code === 'auth/invalid-phone-number') {
+    return 'That phone number doesn’t look right.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Too many tries. Wait a few minutes and try again.';
+  }
+  if (code === 'auth/quota-exceeded') {
+    return 'We can’t send texts right now. Try again later.';
+  }
+
   const fallback = 'Couldn’t send the code. Check your connection and try again.';
-  // While testing, also show Firebase's exact error so we can fix it.
-  return __DEV__ ? `${fallback}\n[${code || 'no code'}] ${(e as Error)?.message ?? ''}` : fallback;
+  return __DEV__
+    ? `${fallback}\n[${code || 'no code'}] ${(e as Error)?.message ?? ''}`
+    : fallback;
 }
 
 // "5551234567" -> "(555) 123-4567"
@@ -34,25 +57,34 @@ function formatPhone(text: string): string {
 export default function Login() {
   const t = useTheme();
   const router = useRouter();
+
   const [step, setStep] = useState<'phone' | 'code' | 'done'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
   const confirmation = useRef<Confirmation | null>(null);
 
   // On Android, Firebase can sometimes read the text by itself and sign the person in.
-  useEffect(() => onAuthStateChanged(getAuth(), (user) => { if (user) setStep('done'); }), []);
+  useEffect(
+    () =>
+      onAuthStateChanged(getAuth(), (user) => {
+        if (user) setStep('done');
+      }),
+    []
+  );
 
   const digits = phone.replace(/\D/g, '');
-  const e164 = `+1${digits}`; // the format Firebase expects
+  const e164 = `+1${digits}`;
   const phoneReady = digits.length === 10;
   const codeReady = code.length === CODE_LENGTH;
 
   async function sendCode() {
     setBusy(true);
     setError('');
+
     try {
       confirmation.current = await signInWithPhoneNumber(getAuth(), e164);
       setCode('');
@@ -68,9 +100,13 @@ export default function Login() {
   async function verify() {
     setBusy(true);
     setError('');
+
     try {
-      await confirmation.current?.confirm(code);
-      // Later: open the home screen here.
+      if (!confirmation.current) {
+        throw new Error('No active verification session. Request a new code.');
+      }
+
+      await confirmation.current.confirm(code);
       router.replace('/main');
     } catch (e) {
       if (__DEV__) console.warn('Verify failed:', e);
@@ -78,6 +114,12 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Development-only navigation. This does NOT create a Firebase user.
+  function skipVerification() {
+    if (!__DEV__) return;
+    router.replace('/main');
   }
 
   async function logOut() {
@@ -89,20 +131,37 @@ export default function Login() {
     setStep('phone');
   }
 
-  const field = [styles.field, { backgroundColor: t.field, borderColor: focused ? BLUE : t.line }];
+  const field = [
+    styles.field,
+    {
+      backgroundColor: t.field,
+      borderColor: focused ? BLUE : t.line,
+    },
+  ];
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.bg }]}>
       <StatusBar style="auto" />
-      <KeyboardAvoidingView style={styles.inner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <Text style={[styles.brand, { color: BLUE }]}>OnIt</Text>
 
         {step === 'phone' && (
           <View style={styles.form}>
-            <Text style={[styles.title, { color: t.text }]}>What's your number?</Text>
-            <Text style={[styles.sub, { color: t.muted }]}>We'll text you a code. No password needed.</Text>
+            <Text style={[styles.title, { color: t.text }]}>
+              What's your number?
+            </Text>
+
+            <Text style={[styles.sub, { color: t.muted }]}>
+              We'll text you a code. No password needed.
+            </Text>
+
             <View style={field}>
               <Text style={[styles.prefix, { color: t.text }]}>+1</Text>
+
               <TextInput
                 style={[styles.input, { color: t.text }]}
                 value={phone}
@@ -118,20 +177,47 @@ export default function Login() {
                 autoFocus
               />
             </View>
+
             {!!error && <Text style={styles.error}>{error}</Text>}
-            <Button label={busy ? 'Sending…' : 'Send code'} onPress={sendCode} disabled={!phoneReady || busy} />
+
+            <Button
+              label={busy ? 'Sending…' : 'Send code'}
+              onPress={sendCode}
+              disabled={!phoneReady || busy}
+            />
+
+            {__DEV__ && (
+              <Pressable
+                onPress={skipVerification}
+                disabled={busy}
+                accessibilityRole="button"
+                style={styles.devButton}
+              >
+                <Text style={styles.devButtonText}>
+                  Skip verification (Development)
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 
         {step === 'code' && (
           <View style={styles.form}>
-            <Text style={[styles.title, { color: t.text }]}>Enter your code</Text>
-            <Text style={[styles.sub, { color: t.muted }]}>Sent to +1 {phone}</Text>
+            <Text style={[styles.title, { color: t.text }]}>
+              Enter your code
+            </Text>
+
+            <Text style={[styles.sub, { color: t.muted }]}>
+              Sent to +1 {phone}
+            </Text>
+
             <View style={field}>
               <TextInput
                 style={[styles.input, styles.code, { color: t.text }]}
                 value={code}
-                onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, CODE_LENGTH))}
+                onChangeText={(v) =>
+                  setCode(v.replace(/\D/g, '').slice(0, CODE_LENGTH))
+                }
                 placeholder="123456"
                 placeholderTextColor={t.muted}
                 keyboardType="number-pad"
@@ -143,14 +229,38 @@ export default function Login() {
                 autoFocus
               />
             </View>
+
             {!!error && <Text style={styles.error}>{error}</Text>}
-            <Button label={busy ? 'Checking…' : 'Verify'} onPress={verify} disabled={!codeReady || busy} />
+
+            <Button
+              label={busy ? 'Checking…' : 'Verify'}
+              onPress={verify}
+              disabled={!codeReady || busy}
+            />
+
             <View style={styles.links}>
-              <Pressable onPress={() => { setError(''); setStep('phone'); }} accessibilityRole="button" style={styles.link}>
-                <Text style={[styles.linkText, { color: BLUE }]}>Change number</Text>
+              <Pressable
+                onPress={() => {
+                  setError('');
+                  setStep('phone');
+                }}
+                accessibilityRole="button"
+                style={styles.link}
+              >
+                <Text style={[styles.linkText, { color: BLUE }]}>
+                  Change number
+                </Text>
               </Pressable>
-              <Pressable onPress={sendCode} disabled={busy} accessibilityRole="button" style={styles.link}>
-                <Text style={[styles.linkText, { color: BLUE }]}>Resend code</Text>
+
+              <Pressable
+                onPress={sendCode}
+                disabled={busy}
+                accessibilityRole="button"
+                style={styles.link}
+              >
+                <Text style={[styles.linkText, { color: BLUE }]}>
+                  Resend code
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -158,11 +268,22 @@ export default function Login() {
 
         {step === 'done' && (
           <View style={styles.form}>
-            <Text style={[styles.title, { color: t.text }]}>You're in!</Text>
-            <Text style={[styles.sub, { color: t.muted }]}>The home screen comes next.</Text>
-            {/* Temporary, until the Account screen has a sign-out button. */}
-            <Pressable onPress={logOut} accessibilityRole="button" style={styles.link}>
-              <Text style={[styles.linkText, { color: BLUE }]}>Sign out</Text>
+            <Text style={[styles.title, { color: t.text }]}>
+              You're in!
+            </Text>
+
+            <Text style={[styles.sub, { color: t.muted }]}>
+              The home screen comes next.
+            </Text>
+
+            <Pressable
+              onPress={logOut}
+              accessibilityRole="button"
+              style={styles.link}
+            >
+              <Text style={[styles.linkText, { color: BLUE }]}>
+                Sign out
+              </Text>
             </Pressable>
           </View>
         )}
@@ -173,8 +294,17 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  inner: { flex: 1, paddingHorizontal: 24, justifyContent: 'center' },
-  brand: { fontSize: 40, fontWeight: '800', letterSpacing: -1, marginBottom: 32 },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  brand: {
+    fontSize: 40,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginBottom: 32,
+  },
   form: { gap: 12 },
   title: { fontSize: 26, fontWeight: '800' },
   sub: { fontSize: 15, marginBottom: 8 },
@@ -188,10 +318,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   prefix: { fontSize: 17, fontWeight: '700' },
-  input: { flex: 1, fontSize: 17, fontWeight: '600', height: '100%', outlineWidth: 0 },
+  input: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    height: '100%',
+    outlineWidth: 0,
+  },
   code: { letterSpacing: 6 },
   error: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
-  links: { flexDirection: 'row', justifyContent: 'space-between' },
+  links: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   link: { paddingVertical: 12 },
   linkText: { fontSize: 15, fontWeight: '600' },
+  devButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  devButtonText: {
+    color: '#777777',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
