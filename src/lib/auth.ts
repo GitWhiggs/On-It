@@ -1,16 +1,18 @@
+
+import {getApp} from '@react-native-firebase/app';
 import {
   getAuth as getFirebaseAuth,
   onAuthStateChanged as firebaseOnAuthStateChanged,
   signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
   signOut as firebaseSignOut,
 } from '@react-native-firebase/auth';
+import {
+  getFunctions,
+  httpsCallable,
+} from '@react-native-firebase/functions';
 
 type Listener = (user: unknown) => void;
 
-/**
- * Returns the React Native Firebase Auth instance.
- * Phone verification is handled by Firebase; there is no mock-code fallback.
- */
 export function getAuth() {
   return getFirebaseAuth();
 }
@@ -33,24 +35,31 @@ export async function signInWithPhoneNumber(
     console.error('[On-It] Firebase error message:', error?.message);
     console.error('[On-It] Native error code:', error?.nativeErrorCode);
     console.error('[On-It] Native error message:', error?.nativeErrorMessage);
-
-    console.error(
-      '[On-It] Firebase userInfo:',
-      error?.userInfo
-    );
-
-    console.error(
-      '[On-It] Firebase customData:',
-      error?.customData
-    );
-
-    console.error(
-      '[On-It] Firebase userInfo JSON:',
-      JSON.stringify(error?.userInfo, null, 2)
-    );
-
     throw error;
   }
+}
+
+export async function ensureSupabaseRole(): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+
+  if (!user) {
+    throw new Error('You must be signed in to connect to Supabase.');
+  }
+
+  const functions = getFunctions(getApp(), 'us-central1');
+  const ensureRole = httpsCallable<
+    Record<string, never>,
+    {success: boolean}
+  >(functions, 'ensureSupabaseRole');
+
+  const result = await ensureRole({});
+
+  if (!result.data.success) {
+    throw new Error('Could not configure your Supabase authentication.');
+  }
+
+  // Fetch a fresh token containing the authenticated role claim.
+  await user.getIdToken(true);
 }
 
 export async function signOut(auth: ReturnType<typeof getFirebaseAuth>) {

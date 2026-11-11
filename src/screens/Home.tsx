@@ -10,6 +10,8 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useAppColors, AppColors } from '@/theme';
+import { getAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 type Sheet = 'category' | 'custom' | 'address' | 'when' | null;
 
@@ -129,6 +131,7 @@ export default function Home() {
   const styles = useMemo(() => makeStyles(C), [C]);
   const router = useRouter();
   const [category, setCategory] = useState<string | null>(null);
+  const [supabaseTestRunning, setSupabaseTestRunning] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [customText, setCustomText] = useState('');
   
@@ -258,6 +261,47 @@ export default function Home() {
     });
   };
 
+  // Development-only diagnostic: checks the Firebase role claim and makes a read-only Supabase request.
+  const testSupabaseConnection = async () => {
+    setSupabaseTestRunning(true);
+
+    try {
+      const user = getAuth().currentUser;
+
+      if (!user) {
+        Alert.alert('Not signed in', 'Sign in with your phone number before running this test.');
+        return;
+      }
+
+      const tokenResult = await user.getIdTokenResult(true);
+      const role = tokenResult.claims.role;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', user.uid)
+        .maybeSingle();
+
+      if (error) {
+        Alert.alert(
+          'Supabase request failed',
+          `Firebase token role: ${String(role ?? 'missing')}\nError: ${error.message}\nCode: ${error.code ?? 'not provided'}`
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Supabase request succeeded',
+        `Firebase token role: ${String(role ?? 'missing')}\nProfile row: ${data ? 'Found' : 'No profile row found'}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Alert.alert('Connection test failed', message);
+    } finally {
+      setSupabaseTestRunning(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="auto" />
@@ -329,6 +373,19 @@ export default function Home() {
             </>
           )}
         </Animated.View>
+
+        {__DEV__ && (
+          <Pressable
+            style={styles.diagnosticButton}
+            onPress={testSupabaseConnection}
+            disabled={supabaseTestRunning}
+            accessibilityRole="button"
+          >
+            <Text style={styles.diagnosticButtonText}>
+              {supabaseTestRunning ? 'Testing Supabase…' : 'Test Supabase Connection'}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => closeSheet()}>
@@ -621,6 +678,8 @@ const makeStyles = (C: AppColors) => StyleSheet.create({
 
   ctaOff: { backgroundColor: C.disabled },
   ctaText: { color: C.bg, fontSize: 17, fontWeight: '700' },
+  diagnosticButton: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
+  diagnosticButtonText: { color: C.textSecondary, fontSize: 12, fontWeight: '600' },
   modalRoot: { flex: 1 },
   keyboardCornerFill: {
     position: 'absolute',

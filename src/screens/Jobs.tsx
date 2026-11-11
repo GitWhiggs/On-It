@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -155,6 +155,19 @@ export default function Jobs({ goHome, unread }: JobsProps) {
     }, [loadJobs])
   );
 
+  // Keep the screen current: check for changes every few seconds (stage updates come from
+  // the server/helper side), and let the user pull down to refresh.
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    const id = setInterval(loadJobs, 5000);
+    return () => clearInterval(id);
+  }, [loadJobs]);
+  async function onRefresh() {
+    setRefreshing(true);
+    await loadJobs();
+    setRefreshing(false);
+  }
+
   // "Yes, all good": the job moves to Past.
   async function handleCompleteJob() {
     if (!activeJob) return;
@@ -220,7 +233,7 @@ export default function Jobs({ goHome, unread }: JobsProps) {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <Text style={styles.title}>Your jobs</Text>
 
         {activeJob ? (
@@ -249,7 +262,6 @@ export default function Jobs({ goHome, unread }: JobsProps) {
                 ))}
               </View>
             </Pressable>
-            {__DEV__ && <Text style={styles.hint}>Dev only: tap the card to move this job to the next stage</Text>}
 
             <View style={styles.block}>
               <View style={[styles.row, styles.helperRow]}>
