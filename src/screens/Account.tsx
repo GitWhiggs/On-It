@@ -1,13 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import Sheet from '@/components/Sheet';
-import { getAuth, signOut } from '@/lib/auth';
+import { getAuth, getUid, signOut } from '@/lib/auth';
+import { loadProfile, setMode } from '@/lib/profile';
 import { useAppColors, AppColors } from '@/theme';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -41,6 +42,20 @@ export default function Account() {
 
   const [showHow, setShowHow] = useState(false);
   const [notify, setNotify] = useState(true);
+  // True once this person has finished the helper sign-up, so the button can say "Switch".
+  const [isHelper, setIsHelper] = useState(false);
+  const [switching, setSwitching] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!getUid()) return;
+      loadProfile()
+        .then((profile) => { if (active) setIsHelper(!!profile?.helper_onboarded_at); })
+        .catch((err) => { if (__DEV__) console.warn('Could not load profile:', err); });
+      return () => { active = false; };
+    }, [])
+  );
 
   const initials = PROFILE.name
     .split(' ')
@@ -54,6 +69,29 @@ export default function Account() {
     Haptics.selectionAsync();
     Alert.alert(what, 'Coming soon.');
   };
+
+  // First time: go to the helper sign-up. After that: switch straight into helper mode.
+  async function handleWorkMode() {
+    Haptics.selectionAsync();
+    if (!getUid()) {
+      Alert.alert('Sign in first', 'Verify your phone number to become a helper.');
+      return;
+    }
+    if (!isHelper) {
+      router.push('/become-helper');
+      return;
+    }
+    setSwitching(true);
+    try {
+      await setMode('helper');
+      router.replace('/helper');
+    } catch (err) {
+      console.error('Could not switch to helper mode:', err);
+      Alert.alert('Couldn’t switch', 'Check your connection and try again.');
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   async function handleSignOut() {
     Haptics.selectionAsync();
@@ -156,10 +194,13 @@ export default function Account() {
           <Text style={styles.workSub}>Set your own hours. Get paid after every confirmed job.</Text>
           <Pressable
             style={styles.workBtn}
-            onPress={() => soon('Become a helper')}
+            onPress={handleWorkMode}
+            disabled={switching}
             accessibilityRole="button"
           >
-            <Text style={styles.workBtnText}>Become a helper</Text>
+            <Text style={styles.workBtnText}>
+              {switching ? 'Switching…' : isHelper ? 'Switch to helper mode' : 'Become a helper'}
+            </Text>
           </Pressable>
         </View>
 

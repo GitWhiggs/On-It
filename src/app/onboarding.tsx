@@ -52,7 +52,7 @@ export default function Onboarding() {
       });
       // 23505 = unique violation: a profile already exists (e.g. double tap). Treat as success.
       if (error && error.code !== '23505') throw error;
-      router.replace('/main');
+      router.replace(mode === 'helper' ? '/helper' : '/main');
     } catch (error) {
       console.error('Onboarding save failed:', error);
       Alert.alert('Could not save your account', 'Please check your connection and try again.');

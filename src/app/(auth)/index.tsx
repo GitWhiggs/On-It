@@ -74,9 +74,11 @@ export default function Login() {
 
   async function continueAfterVerification() {
     const { data, error: profileError } = await supabase
-      .from('profiles').select('user_id').eq('user_id', getAuth().currentUser?.uid ?? '').maybeSingle();
+      .from('profiles').select('user_id, mode, helper_onboarded_at').eq('user_id', getAuth().currentUser?.uid ?? '').maybeSingle();
     if (profileError) throw profileError;
-    router.replace(data ? '/main' : '/onboarding');
+    if (!data) { router.replace('/onboarding'); return; }
+    // Helpers who left off in helper mode land back on the helper side.
+    router.replace(data.mode === 'helper' && data.helper_onboarded_at ? '/helper' : '/main');
   }
 
   async function verify() {

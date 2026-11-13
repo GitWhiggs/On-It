@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On-It · phone preview</title>
+<!--
+  Testing page for the web version. It shows the app inside a phone-sized frame,
+  so it looks and lays out the way it does on a phone instead of stretching across
+  the whole browser window. Open it at http://localhost:8081/phone.html while
+  "npx expo start" is running. It is not part of the phone app.
+-->
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #1c1c1e;
+    color: #c9c9c3;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+  }
+  #stage { width: 390px; height: 844px; transform-origin: center center; flex-shrink: 0; }
+  #phone {
+    width: 390px;
+    height: 844px;
+    border: 0;
+    border-radius: 36px;
+    background: #fafaf7;
+    box-shadow: 0 0 0 10px #000, 0 0 0 11px #3a3a3c, 0 30px 80px rgba(0, 0, 0, 0.6);
+    display: block;
+  }
+  #bar { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+  #bar button {
+    font: inherit;
+    color: #fff;
+    background: #3a3a3c;
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  #bar button:hover { background: #4a4a4c; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <iframe id="phone" src="/" title="On-It app" allow="geolocation; camera; microphone; clipboard-write"></iframe>
+  </div>
+  <div id="bar">
+    <span>Phone preview · 390 × 844</span>
+    <button type="button" id="restart">Log out and restart</button>
+  </div>
+<script>
+  // Shrink the phone to fit when the browser window is shorter than the phone.
+  var stage = document.getElementById('stage');
+  var bar = document.getElementById('bar');
+  function fit() {
+    var room = window.innerHeight - bar.offsetHeight - 12 - 44;
+    var scale = Math.min(1, room / 844, (window.innerWidth - 44) / 390);
+    stage.style.transform = 'scale(' + scale + ')';
+    // Keep the layout box in step with the scaled size so the bar sits right under the phone.
+    stage.style.marginTop = stage.style.marginBottom = (-(844 * (1 - scale)) / 2) + 'px';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  // Reloading the app logs out (test login is not saved), so this starts over at the login screen.
+  document.getElementById('restart').addEventListener('click', function () {
+    document.getElementById('phone').src = '/';
+  });
+</script>
+</body>
+</html>
