@@ -17,13 +17,13 @@ export default function HelperEarnings() {
         <Text style={styles.title}>Earnings</Text>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Ready to cash out</Text>
-          <Text style={styles.amount}>$0.00</Text>
-          <Text style={styles.cardSub}>Your pay shows up here after your first gig.</Text>
+          <Text style={styles.cardLabel}>Payouts are not active yet</Text>
+          <Text style={styles.amount}>Coming soon</Text>
+          <Text style={styles.cardSub}>Earnings and cash-outs will appear here after gig payments are enabled.</Text>
         </View>
 
         <Text style={styles.note}>
-          You keep 100% of every gig and tip. On-It’s fee is paid by the customer.
+          Your helper profile is set up, but paid gigs and payouts are not available yet.
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -11,7 +11,9 @@ import {
   httpsCallable,
 } from '@react-native-firebase/functions';
 
-type Listener = (user: unknown) => void;
+type Listener = (
+  user: ReturnType<typeof getFirebaseAuth>['currentUser']
+) => void;
 
 export function getAuth() {
   return getFirebaseAuth();
