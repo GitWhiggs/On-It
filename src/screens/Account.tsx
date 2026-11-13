@@ -279,6 +279,7 @@ export default function Account() {
         phone_number: firebasePhone ?? profile?.phone_number ?? null,
         avatar_url: avatarUrl,
         mode: profile?.mode ?? 'customer',
+        helper_onboarded_at: profile?.helper_onboarded_at ?? null, // <-- Add this line
       };
 
       const { error } = await supabase

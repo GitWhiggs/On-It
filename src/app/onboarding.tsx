@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -78,12 +77,10 @@ export default function Onboarding() {
     vehicle,
   }), [firstName, mode, categories, city, vehicle]);
 
-  // Keep the latest form values available to save operations.
   useEffect(() => {
     latestData.current = currentData();
   }, [currentData]);
 
-  // Load the existing pending profile when onboarding opens.
   useEffect(() => {
     mounted.current = true;
 
@@ -173,7 +170,6 @@ export default function Onboarding() {
     };
   }, [router]);
 
-  // Serialize writes so an older autosave cannot overwrite a newer one.
   const persistProfile = useCallback(
     (values: OnboardingData, completed = false): Promise<void> => {
       const user = getAuth().currentUser;
@@ -200,7 +196,6 @@ export default function Onboarding() {
             helper_availability: 'online',
             helper_alerts: true,
             onboarding_completed: completed,
-            // Helper completion is recorded only by the dedicated helper sign-up flow.
             helper_onboarded_at: null,
           })
           .eq('user_id', user.uid);
@@ -208,7 +203,6 @@ export default function Onboarding() {
         if (error) throw error;
       });
 
-      // Keep the queue usable even if an earlier save fails.
       saveQueue.current = operation.catch(() => {});
 
       return operation;
@@ -216,7 +210,6 @@ export default function Onboarding() {
     []
   );
 
-  // Automatically save changes after the user pauses typing or selecting.
   useEffect(() => {
     if (!hydrated.current || loading || busy) return;
 
@@ -353,31 +346,12 @@ export default function Onboarding() {
     setSaveStatus('saving');
 
     try {
-      // Wait for any previous autosave, then perform the final save.
       await persistProfile(values, true);
 
       if (!mounted.current) return;
 
       setSaveStatus('saved');
       router.replace(values.mode === 'helper' ? '/become-helper' : '/main');
-    try {
-      // New accounts only: users who already have a profile never reach this screen.
-      // Timestamps (created_at / updated_at) are set by the database, not the client.
-      const { error } = await supabase.from('profiles').insert({
-        user_id: user.uid,
-        first_name: firstName.trim(),
-        mode,
-        helper_categories: mode === 'helper' ? categories : [],
-        helper_city: mode === 'helper' ? city.trim() : null,
-        helper_vehicle: mode === 'helper' ? vehicle : 'none',
-        helper_radius_miles: 10,
-        helper_availability: 'online',
-        helper_alerts: true,
-        helper_onboarded_at: mode === 'helper' ? new Date().toISOString() : null,
-      });
-      // 23505 = unique violation: a profile already exists (e.g. double tap). Treat as success.
-      if (error && error.code !== '23505') throw error;
-      router.replace(mode === 'helper' ? '/helper' : '/main');
     } catch (error) {
       console.error('[On-It] Final onboarding save failed:', error);
 

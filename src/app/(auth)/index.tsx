@@ -1,4 +1,3 @@
-
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -94,16 +93,6 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
-    } finally { setBusy(false); }
-  }
-
-  async function continueAfterVerification() {
-    const { data, error: profileError } = await supabase
-      .from('profiles').select('user_id, mode, helper_onboarded_at').eq('user_id', getAuth().currentUser?.uid ?? '').maybeSingle();
-    if (profileError) throw profileError;
-    if (!data) { router.replace('/onboarding'); return; }
-    // Helpers who left off in helper mode land back on the helper side.
-    router.replace(data.mode === 'helper' && data.helper_onboarded_at ? '/helper' : '/main');
   }
 
   async function verify() {
