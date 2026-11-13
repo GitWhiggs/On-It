@@ -1,38 +1,48 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentProps } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+// One tab in the bar. activeIcon is the icon shown while that tab is selected (optional).
+export type NavTab = { label: string; icon: IconName; activeIcon?: IconName };
+
 type Props = {
   index: number;
   onChange: (i: number) => void;
   dots?: boolean[];
+  // Which tabs to show. Leave it out for the customer tabs (Home, Jobs, Account).
+  tabs?: NavTab[];
 };
 
-const TABS = [
+const CUSTOMER_TABS: NavTab[] = [
   { label: 'Home', icon: 'lightning-bolt' },
   { label: 'Jobs', icon: 'clipboard-text-clock' },
-  { label: 'Account', icon: 'account-outline' },
-] as const;
+  { label: 'Account', icon: 'account-outline', activeIcon: 'account' },
+];
 
 const NAV_WIDTH = Dimensions.get('window').width - 24;
-const TAB_WIDTH = (NAV_WIDTH - 22) / 3;
-const TAB_STEP = TAB_WIDTH + 4;
+const SIDE_PADDING = 7;
+const TAB_GAP = 4;
 
-export default function BottomNav({ index, onChange }: Props) {
+export default function BottomNav({ index, onChange, tabs = CUSTOMER_TABS }: Props) {
   const insets = useSafeAreaInsets();
-  const indicatorX = useRef(new Animated.Value(index * TAB_STEP)).current;
+  // Works for any number of tabs (three for customers, four for helpers).
+  const tabWidth = (NAV_WIDTH - SIDE_PADDING * 2 - TAB_GAP * (tabs.length - 1)) / tabs.length;
+  const tabStep = tabWidth + TAB_GAP;
+  const indicatorX = useRef(new Animated.Value(index * tabStep)).current;
 
   useEffect(() => {
     Animated.spring(indicatorX, {
-      toValue: index * TAB_STEP,
+      toValue: index * tabStep,
       stiffness: 260,
       damping: 24,
       mass: 0.8,
       useNativeDriver: true,
     }).start();
-  }, [index, indicatorX]);
+  }, [index, indicatorX, tabStep]);
 
   return (
     <View
@@ -46,7 +56,7 @@ export default function BottomNav({ index, onChange }: Props) {
           pointerEvents="none"
           style={[
             styles.slidingGlass,
-            { transform: [{ translateX: indicatorX }] },
+            { width: tabWidth, transform: [{ translateX: indicatorX }] },
           ]}
         >
           <View pointerEvents="none" style={styles.buttonGlassRim} />
@@ -54,7 +64,7 @@ export default function BottomNav({ index, onChange }: Props) {
         </Animated.View>
 
         <View style={styles.tabs}>
-          {TABS.map((tab, i) => {
+          {tabs.map((tab, i) => {
             const active = index === i;
 
             return (
@@ -74,11 +84,7 @@ export default function BottomNav({ index, onChange }: Props) {
                 <View style={styles.tabContent}>
                   <View style={styles.iconWrap}>
                     <MaterialCommunityIcons
-                      name={
-                        active && i === 2
-                          ? 'account'
-                          : tab.icon
-                      }
+                      name={active && tab.activeIcon ? tab.activeIcon : tab.icon}
                       size={active ? 24 : 23}
                       color={active ? '#111111' : '#686868'}
                     />
@@ -128,7 +134,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 7,
     top: 4,
-    width: TAB_WIDTH,
     height: 52,
     borderRadius: 26,
     backgroundColor: 'rgba(255, 255, 255, 0.30)',
