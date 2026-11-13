@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Button from '@/components/Button';
 import { getAuth, onAuthStateChanged, signInWithPhoneNumber, signOut } from '@/lib/auth';
+import { homeRouteAfterLogin } from '@/lib/profile';
 import { BLUE, useTheme } from '@/theme';
 import { useRouter } from 'expo-router';
 
@@ -41,9 +42,11 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const confirmation = useRef<Confirmation | null>(null);
+  // True while verify() is taking the person into the app, so the "You're in!" page doesn't flash.
+  const entering = useRef(false);
 
   // On Android, Firebase can sometimes read the text by itself and sign the person in.
-  useEffect(() => onAuthStateChanged(getAuth(), (user) => { if (user) setStep('done'); }), []);
+  useEffect(() => onAuthStateChanged(getAuth(), (user) => { if (user && !entering.current) setStep('done'); }), []);
 
   const digits = phone.replace(/\D/g, '');
   const e164 = `+1${digits}`; // the format Firebase expects
@@ -58,7 +61,14 @@ export default function Login() {
       setCode('');
       setStep('code');
     } catch (e) {
-      if (__DEV__) console.warn('Send code failed:', e);
+      if (__DEV__) {
+        const err = e as any;
+        console.warn('Send code failed:', e);
+        console.log('code:', err?.code);
+        console.log('nativeErrorCode:', err?.nativeErrorCode);
+        console.log('nativeErrorMessage:', err?.nativeErrorMessage);
+        console.log('userInfo:', JSON.stringify(err?.userInfo));
+      }
       setError(friendlyError(e));
     } finally {
       setBusy(false);
@@ -68,11 +78,13 @@ export default function Login() {
   async function verify() {
     setBusy(true);
     setError('');
+    entering.current = true;
     try {
       await confirmation.current?.confirm(code);
-      // Later: open the home screen here.
-      router.replace('/main');
+      // Helpers go back to helper mode. Everyone else goes to the customer side.
+      router.replace(await homeRouteAfterLogin());
     } catch (e) {
+      entering.current = false;
       if (__DEV__) console.warn('Verify failed:', e);
       setError('That code didn’t work. Check it and try again.');
     } finally {

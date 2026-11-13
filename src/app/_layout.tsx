@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
 import { StripeProvider } from '@stripe/stripe-react-native';
-import '@react-native-firebase/app'; // Ensures Firebase app core is loaded
 
 export default function RootLayout() {
   return (

@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import {
-  getAuth as getFirebaseAuth,
-  onAuthStateChanged as firebaseOnAuthStateChanged,
-  signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
-  signOut as firebaseSignOut,
-} from '@react-native-firebase/auth';
+// Expo Go doesn't include Firebase, so only load it in a custom build
+const fb: any = Constants.appOwnership === 'expo' ? {} : require('@react-native-firebase/auth');
+const {
+  getAuth: getFirebaseAuth,
+  onAuthStateChanged: firebaseOnAuthStateChanged,
+  signInWithPhoneNumber: firebaseSignInWithPhoneNumber,
+  signOut: firebaseSignOut,
+} = fb;
 
-// Forced mock mode enabled for local development to bypass Firebase SMS billing/config blocks
+// Mock mode on: any phone number and code gets in. Needed to test on web (Firebase only runs in the phone app).
+// Set to false for real Firebase phone login.
 const useMock = true;
 
 type Listener = (user: unknown) => void;

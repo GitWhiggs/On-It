@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/onit-logo-square.png",
     "userInterfaceStyle": "light",
+    "scheme": "onit",
     "splash": {
       "image": "./assets/OnItPinPNG.png",
       "resizeMode": "contain",
@@ -37,6 +38,12 @@
         "@stripe/stripe-react-native",
         {
           "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "On-It uses your location to show nearby helpers exactly where you are."
         }
       ],
       "@react-native-firebase/app",
